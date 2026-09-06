@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>SimplyPdf.Samples.PosInvoice</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SimplyPdf\SimplyPdf.csproj" />
+    <PackageReference Include="Net.Codecrete.QrCodeGenerator" Version="2.0.6" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Shares the OFL fonts of the receipt sample instead of duplicating the binaries. -->
+    <None Include="..\PosReceipt\fonts\*.ttf" Link="fonts\%(Filename)%(Extension)" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

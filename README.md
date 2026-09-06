@@ -87,6 +87,7 @@ src/SimplyPdf/          the library (net10.0)
 tests/SimplyPdf.Tests/  xunit tests, including a PNG encoder used to fabricate inputs
 samples/DianInvoice/    a Colombian electronic invoice reproduced from its pdfkit original
 samples/PosReceipt/     an 80 mm thermal-printer receipt in three OFL monospace fonts
+samples/PosInvoice/     an electronic invoice in receipt form (44-column retail layout) on an 80 mm roll
 tools/AfmToCSharp/      regenerates the font metrics from tools/afm/*.afm
 ```
 
@@ -94,6 +95,7 @@ tools/AfmToCSharp/      regenerates the font metrics from tools/afm/*.afm
 dotnet test
 dotnet run --project samples/DianInvoice -- FE0177192.pdf
 dotnet run --project samples/PosReceipt -- out/
+dotnet run --project samples/PosInvoice -- factura-pos.pdf VT323-Regular.ttf
 ```
 
 ## License

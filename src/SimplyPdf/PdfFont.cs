@@ -98,6 +98,23 @@ public abstract class PdfFont
         return new TrueTypePdfFont(TrueTypeFont.Parse(data));
     }
 
+    /// <summary>Advance width of <paramref name="text"/> at <paramref name="size"/> points, without needing a page.</summary>
+    public double WidthOfString(string text, double size)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        return WidthOf(WinAnsiEncoding.Encode(text), size);
+    }
+
+    /// <summary>
+    /// Height of one line at <paramref name="size"/> points: ascender minus descender, plus the
+    /// font's line gap when <paramref name="includeGap"/> is true (the advance used between lines).
+    /// </summary>
+    public double LineHeight(double size, bool includeGap = false)
+    {
+        var gap = includeGap ? LineGap : 0;
+        return (Ascender + gap - Descender) * size / 1000.0;
+    }
+
     /// <summary>Ascender in 1/1000 em.</summary>
     internal abstract double Ascender { get; }
 
@@ -122,11 +139,5 @@ public abstract class PdfFont
         }
 
         return units * size / 1000.0;
-    }
-
-    internal double LineHeight(double size, bool includeGap)
-    {
-        var gap = includeGap ? LineGap : 0;
-        return (Ascender + gap - Descender) * size / 1000.0;
     }
 }
