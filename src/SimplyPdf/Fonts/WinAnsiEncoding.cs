@@ -11,6 +11,28 @@ internal static class WinAnsiEncoding
     /// <summary>Byte written for characters that WinAnsi cannot represent (a question mark).</summary>
     public const byte Replacement = (byte)'?';
 
+    // Unicode value of WinAnsi codes 0x80..0x9F. Codes the encoding leaves undefined render as
+    // bullet, as PDF 32000-1 Annex D prescribes.
+    private static readonly char[] HighBlock =
+    [
+        '€', '•', '‚', 'ƒ', '„', '…', '†', '‡', 'ˆ', '‰', 'Š', '‹', 'Œ', '•', 'Ž', '•',
+        '•', '‘', '’', '“', '”', '•', '–', '—', '˜', '™', 'š', '›', 'œ', '•', 'ž', 'Ÿ',
+    ];
+
+    /// <summary>
+    /// The Unicode character a viewer draws for a WinAnsi code. This follows the glyph *names* of the
+    /// encoding, which is how PDF viewers resolve TrueType glyphs: 0xA0 is "space" and 0xAD is
+    /// "hyphen", not the non-breaking variants.
+    /// </summary>
+    public static char ToUnicode(byte code) => code switch
+    {
+        0x7F => '•',
+        >= 0x80 and <= 0x9F => HighBlock[code - 0x80],
+        0xA0 => ' ',
+        0xAD => '-',
+        _ => (char)code,
+    };
+
     public static byte[] Encode(string text)
     {
         var bytes = new byte[text.Length];

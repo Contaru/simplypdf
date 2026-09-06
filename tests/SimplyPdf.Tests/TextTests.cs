@@ -1,4 +1,3 @@
-using SimplyPdf.Fonts;
 using SimplyPdf.Text;
 
 namespace SimplyPdf.Tests;
@@ -111,7 +110,7 @@ public class TextTests
     [Fact]
     public void Long_text_wraps_at_spaces_within_the_box()
     {
-        var font = StandardFontMetrics.Get(StandardFont.Helvetica);
+        var font = PdfFont.Helvetica;
         var lines = TextLayout.Wrap("the quick brown fox jumps over the lazy dog", 60, font, 10);
 
         Assert.All(lines, l => Assert.True(font.WidthOf(l.Bytes, 10) <= 60));
@@ -124,7 +123,7 @@ public class TextTests
     [Fact]
     public void Word_wider_than_the_box_is_broken_by_character()
     {
-        var font = StandardFontMetrics.Get(StandardFont.Helvetica);
+        var font = PdfFont.Helvetica;
         var lines = TextLayout.Wrap("abcdefghijklmnopqrstuvwxyz", 30, font, 10);
 
         Assert.True(lines.Count > 1);
@@ -135,7 +134,7 @@ public class TextTests
     [Fact]
     public void Explicit_newlines_always_break_and_empty_text_still_takes_a_line()
     {
-        var font = StandardFontMetrics.Get(StandardFont.Helvetica);
+        var font = PdfFont.Helvetica;
 
         var lines = TextLayout.Wrap("a\r\nb\nc", double.PositiveInfinity, font, 10);
         Assert.Equal(new[] { "a", "b", "c" }, lines.Select(l => Latin1(l.Bytes)));

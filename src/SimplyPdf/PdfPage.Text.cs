@@ -7,12 +7,15 @@ namespace SimplyPdf;
 public sealed partial class PdfPage
 {
     /// <summary>Selects the font (and optionally the size) for subsequent text.</summary>
-    public PdfPage Font(StandardFont font, double? size = null)
+    public PdfPage Font(PdfFont font, double? size = null)
     {
+        ArgumentNullException.ThrowIfNull(font);
         CurrentFont = font;
-        _fontMetrics = StandardFontMetrics.Get(font);
         return size is { } s ? FontSize(s) : this;
     }
+
+    /// <summary>Selects one of the standard 14 fonts (and optionally the size) for subsequent text.</summary>
+    public PdfPage Font(StandardFont font, double? size = null) => Font(PdfFont.Standard(font), size);
 
     /// <summary>Sets the font size in points for subsequent text.</summary>
     public PdfPage FontSize(double size)
@@ -26,18 +29,18 @@ public sealed partial class PdfPage
     public double WidthOfString(string text)
     {
         ArgumentNullException.ThrowIfNull(text);
-        return _fontMetrics.WidthOf(WinAnsiEncoding.Encode(text), CurrentFontSize);
+        return CurrentFont.WidthOf(WinAnsiEncoding.Encode(text), CurrentFontSize);
     }
 
     /// <summary>Height of one line in the current font and size, optionally including the font's line gap.</summary>
-    public double CurrentLineHeight(bool includeGap = false) => _fontMetrics.LineHeight(CurrentFontSize, includeGap);
+    public double CurrentLineHeight(bool includeGap = false) => CurrentFont.LineHeight(CurrentFontSize, includeGap);
 
     /// <summary>Total height <paramref name="text"/> would occupy if drawn with the given options.</summary>
     public double HeightOfString(string text, TextOptions? options = null)
     {
         ArgumentNullException.ThrowIfNull(text);
         options ??= TextOptions.Default;
-        var lines = TextLayout.Wrap(text, WrapWidth(X, options), _fontMetrics, CurrentFontSize);
+        var lines = TextLayout.Wrap(text, WrapWidth(X, options), CurrentFont, CurrentFontSize);
         return lines.Count * (CurrentLineHeight(includeGap: true) + options.LineGap);
     }
 
@@ -68,12 +71,13 @@ public sealed partial class PdfPage
         var x = X;
         var y = Y;
         var boxWidth = BoxWidth(x, options);
-        var lines = TextLayout.Wrap(text, WrapWidth(x, options), _fontMetrics, CurrentFontSize);
+        var lines = TextLayout.Wrap(text, WrapWidth(x, options), CurrentFont, CurrentFontSize);
         var lineHeight = CurrentLineHeight(includeGap: true) + options.LineGap;
-        var ascent = _fontMetrics.Ascender * CurrentFontSize / 1000.0;
+        var ascent = CurrentFont.Ascender * CurrentFontSize / 1000.0;
 
-        // Fonts are registered on first use so the document only carries the ones it needs.
-        var fontName = Document.FontResourceName(CurrentFont);
+        // Fonts are registered on first use so the document only carries the ones it needs,
+        // and the codes drawn are recorded so embedded fonts can be subsetted.
+        var fontName = Document.RegisterFontUse(CurrentFont, []);
         _usedFonts.Add(fontName);
 
         // Undo the page flip locally so glyphs are upright, then position each line with Tm.
@@ -82,7 +86,7 @@ public sealed partial class PdfPage
 
         foreach (var line in lines)
         {
-            var lineWidth = _fontMetrics.WidthOf(line.Bytes, CurrentFontSize);
+            var lineWidth = CurrentFont.WidthOf(line.Bytes, CurrentFontSize);
             var lineX = options.Align switch
             {
                 TextAlign.Center => x + (boxWidth - lineWidth) / 2,
@@ -100,6 +104,7 @@ public sealed partial class PdfPage
             _content.Append("1 0 0 1 ").Append(N(lineX)).Append(' ').Append(N(Height - y - ascent)).Append(" Tm\n");
             if (line.Bytes.Length > 0)
             {
+                Document.RegisterFontUse(CurrentFont, line.Bytes);
                 PdfFormat.AppendLiteral(_content, line.Bytes);
                 _content.Append(" Tj\n");
             }
