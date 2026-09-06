@@ -26,6 +26,15 @@ public class TextTests
     }
 
     [Fact]
+    public void Fonts_measure_text_without_a_page()
+    {
+        Assert.Equal(22.78, PdfFont.Helvetica.WidthOfString("Hello", 10), 3);
+        Assert.Equal(9.25, PdfFont.Helvetica.LineHeight(10), 3);
+        Assert.Equal(11.56, PdfFont.Helvetica.LineHeight(10, includeGap: true), 3);
+        Assert.Equal(6 * 10.0, PdfFont.Courier.WidthOfString("0123456789", 10), 3);
+    }
+
+    [Fact]
     public void Accented_characters_are_measured_through_winansi()
     {
         var page = NewPage(out _).Font(StandardFont.Helvetica, 10);

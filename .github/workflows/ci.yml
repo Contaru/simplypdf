@@ -36,6 +36,7 @@ jobs:
           mkdir -p samples-output
           dotnet run --no-build --configuration Release --project samples/DianInvoice -- samples-output/FE0177192.pdf
           dotnet run --no-build --configuration Release --project samples/PosReceipt -- samples-output
+          dotnet run --no-build --configuration Release --project samples/PosInvoice -- samples-output/factura-pos.pdf
 
       - name: Verify generated metrics are up to date
         run: |
