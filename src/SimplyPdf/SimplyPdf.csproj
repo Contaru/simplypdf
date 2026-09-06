@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <RootNamespace>SimplyPdf</RootNamespace>
+    <AssemblyName>SimplyPdf</AssemblyName>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <IsPackable>true</IsPackable>
+    <PackageId>SimplyPdf</PackageId>
+    <Version>0.1.0</Version>
+    <Description>Dependency-free PDF writer for .NET: absolute-position drawing, the 14 standard fonts, PNG/JPEG images. No native binaries, no third-party packages.</Description>
+    <PackageLicenseExpression>MIT</PackageLicenseExpression>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+    <PackageTags>pdf;pdf-generation;invoice;dependency-free</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\README.md" Pack="true" PackagePath="\" />
+    <InternalsVisibleTo Include="SimplyPdf.Tests" />
+  </ItemGroup>
+
+</Project>
