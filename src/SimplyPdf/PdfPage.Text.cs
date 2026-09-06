@@ -32,6 +32,13 @@ public sealed partial class PdfPage
         return CurrentFont.WidthOf(WinAnsiEncoding.Encode(text), CurrentFontSize);
     }
 
+    /// <summary>
+    /// <paramref name="text"/> if it fits in <paramref name="maxWidth"/> points in the current font and
+    /// size, otherwise the longest prefix that fits with an ellipsis. See <see cref="PdfFont.Fit"/>.
+    /// </summary>
+    public string FitString(string text, double maxWidth, string ellipsis = "…") =>
+        CurrentFont.Fit(text, CurrentFontSize, maxWidth, ellipsis);
+
     /// <summary>Height of one line in the current font and size, optionally including the font's line gap.</summary>
     public double CurrentLineHeight(bool includeGap = false) => CurrentFont.LineHeight(CurrentFontSize, includeGap);
 

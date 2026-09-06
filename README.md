@@ -5,8 +5,8 @@ TrueType fonts, PNG and JPEG images — nothing else. No native binaries, no thi
 no licence gate.
 
 It exists for documents like invoices, receipts and labels: fixed layouts drawn at known
-coordinates. If you need flowing multi-page layouts, tables that paginate themselves, or
-Unicode beyond Latin-1, use a layout engine instead (QuestPDF, PDFsharp).
+coordinates, plus one table that continues on the next page. If you need flowing multi-page
+layouts beyond that, or Unicode beyond Latin-1, use a layout engine instead (QuestPDF, PDFsharp).
 
 ```csharp
 using SimplyPdf;
@@ -48,6 +48,42 @@ outlines (every Google Fonts download qualifies).
 Only embed fonts whose licence allows it. SIL OFL fonts do; most "free for personal use" fonts
 and many freeware desktop EULAs (Typodermic's, for instance) do not cover servers or software.
 
+## Tables
+
+`PdfTable` (namespace `SimplyPdf.Layout`) is a grid of text cells with fixed column widths. Row
+heights follow the wrapped cell text; the header sits on a band and the grid is stroked around
+the rows. It draws in **slices**: each `Draw` paints as many rows as fit above `maxY`, repeats
+the header, and returns where it stopped, so a long table continues on the next page:
+
+```csharp
+using SimplyPdf.Layout;
+
+var table = new PdfTable(
+[
+    new PdfTableColumn("Ítem", 30, TextAlign.Center),
+    new PdfTableColumn("Descripción", 250),
+    new PdfTableColumn("Cant.", 40, TextAlign.Right),
+    new PdfTableColumn("Vr. Total", 90, TextAlign.Right),
+]);
+foreach (var line in invoice.Lines)
+{
+    table.AddRow(line.Number, line.Description, line.Quantity, line.Total);
+}
+
+var slice = table.Draw(page, x: 30, y: 190, maxY: 540);
+while (!slice.IsComplete)
+{
+    page = doc.AddPage(PdfPageSize.Letter, PdfMargins.All(25));
+    slice = table.Draw(page, 30, 60, 700, slice.NextRow);
+}
+// slice.Bottom is where the totals go
+```
+
+Every call draws at least the header and one row, even if that row overflows `maxY`, so the
+loop always advances. `PdfTableStyle` sets fonts, colours, padding, stripes and whether the
+header repeats. For single-line cells that must not wrap, `font.Fit(text, size, maxWidth)` (or
+`page.FitString`) trims the text to the width with an ellipsis.
+
 ## Coordinate model
 
 The origin is the **top-left** corner and y grows downwards, exactly like pdfkit. Units are PDF
@@ -65,7 +101,8 @@ pending path only sets the fill colour, which is also the text colour.
 | --- | --- |
 | Pages | Any size (`PdfPageSize.Letter`, `A4`, `.Landscape`, custom), any number of pages |
 | Fonts | Helvetica, Times, Courier families (12 faces) with AFM metrics; TrueType `.ttf` embedded and subsetted |
-| Text | Word wrap, left / centre / right / justify, line gap, `WidthOfString`, `HeightOfString`, cursor flow |
+| Text | Word wrap, left / centre / right / justify, line gap, `WidthOfString`, `HeightOfString`, `Fit` with ellipsis, cursor flow |
+| Tables | `PdfTable`: fixed column widths, wrapped cells, header band, grid, stripes, drawn in slices that continue on the next page |
 | Encoding | WinAnsi: Latin-1 plus curly quotes, dashes, €, ™… Unsupported characters become `?` |
 | Paths | Rectangles, rounded rectangles, ellipses, circles, polygons, Bézier curves, dashes, line width, clipping |
 | Transforms | `Save` / `Restore`, `Translate`, `Scale`, `Rotate` around an origin |
@@ -76,7 +113,7 @@ pending path only sets the fill colour, which is also the text colour.
 
 - Unicode beyond WinAnsi (no CJK, no emoji), even with embedded fonts.
 - Kerning. Widths are plain advance widths (pdfkit applies AFM kern pairs; differences are fractions of a point).
-- Automatic page breaks: text past the bottom of the page is simply off the page.
+- Automatic page breaks for free text: text past the bottom of the page is simply off the page (tables paginate through `PdfTable.Draw`).
 - PDF/A, encryption, forms, annotations, links, bookmarks.
 - QR codes. Draw the module matrix from any generator as 1 pt squares — see `samples/DianInvoice`.
 

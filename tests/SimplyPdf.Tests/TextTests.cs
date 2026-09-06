@@ -166,6 +166,36 @@ public class TextTests
     }
 
     [Fact]
+    public void Font_measures_height_without_a_page_like_the_page_does()
+    {
+        var page = new PdfDocument().AddPage();
+        page.Font(StandardFont.Helvetica, 10);
+        const string text = "Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt.";
+
+        Assert.Equal(
+            page.HeightOfString(text, new TextOptions { Width = 120, LineGap = 2 }),
+            PdfFont.Helvetica.HeightOfString(text, 10, 120, lineGap: 2),
+            6);
+    }
+
+    [Fact]
+    public void Fit_keeps_text_that_fits_and_trims_the_rest_with_an_ellipsis()
+    {
+        var font = PdfFont.Helvetica;
+
+        Assert.Equal("short", font.Fit("short", 10, 100));
+        var fitted = font.Fit("A description far too long for the cell it lives in", 10, 100);
+        Assert.EndsWith("…", fitted, StringComparison.Ordinal);
+        Assert.True(font.WidthOfString(fitted, 10) <= 100);
+        Assert.StartsWith("A description", fitted, StringComparison.Ordinal); // as much of the text as fits, not a token
+        Assert.Equal(string.Empty, font.Fit("anything", 10, 1)); // not even the ellipsis fits
+
+        var page = new PdfDocument().AddPage();
+        page.Font(StandardFont.Helvetica, 10);
+        Assert.Equal(fitted, page.FitString("A description far too long for the cell it lives in", 100));
+    }
+
+    [Fact]
     public void Height_of_string_counts_wrapped_lines()
     {
         var page = NewPage(out _).Font(StandardFont.Helvetica, 10);
