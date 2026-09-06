@@ -1,0 +1,6 @@
+# Normalise line endings so the repo is identical on Windows and the Linux CI runners.
+* text=auto eol=lf
+
+*.png binary
+*.jpg binary
+*.pdf binary
