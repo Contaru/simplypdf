@@ -106,6 +106,44 @@ public abstract class PdfFont
     }
 
     /// <summary>
+    /// Height <paramref name="text"/> takes when wrapped into <paramref name="width"/> points at
+    /// <paramref name="size"/>: the number of lines times the line height (gap included) plus
+    /// <paramref name="lineGap"/> per line. The same measurement <see cref="PdfPage.HeightOfString"/> makes.
+    /// </summary>
+    public double HeightOfString(string text, double size, double width, double lineGap = 0)
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        return Text.TextLayout.Wrap(text, width, this, size).Count * (LineHeight(size, includeGap: true) + lineGap);
+    }
+
+    /// <summary>
+    /// Returns <paramref name="text"/> when it fits in <paramref name="maxWidth"/> points at
+    /// <paramref name="size"/>; otherwise the longest prefix that fits together with
+    /// <paramref name="ellipsis"/>, for single-line cells that must not wrap.
+    /// </summary>
+    public string Fit(string text, double size, double maxWidth, string ellipsis = "…")
+    {
+        ArgumentNullException.ThrowIfNull(text);
+        ArgumentNullException.ThrowIfNull(ellipsis);
+        if (WidthOfString(text, size) <= maxWidth)
+        {
+            return text;
+        }
+
+        var room = maxWidth - WidthOfString(ellipsis, size);
+        for (var length = text.Length - 1; length > 0; length--)
+        {
+            var prefix = text[..length].TrimEnd();
+            if (prefix.Length > 0 && WidthOfString(prefix, size) <= room)
+            {
+                return prefix + ellipsis;
+            }
+        }
+
+        return room >= 0 ? ellipsis : string.Empty;
+    }
+
+    /// <summary>
     /// Height of one line at <paramref name="size"/> points: ascender minus descender, plus the
     /// font's line gap when <paramref name="includeGap"/> is true (the advance used between lines).
     /// </summary>

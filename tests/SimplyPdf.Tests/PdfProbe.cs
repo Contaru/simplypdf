@@ -107,21 +107,22 @@ internal sealed partial class PdfProbe
     }
 
     /// <summary>Content stream of the first page as text.</summary>
-    public string FirstPageContent()
+    public string FirstPageContent() => PageContent(0);
+
+    /// <summary>Content stream of the page at <paramref name="index"/> (0-based, in document order) as text.</summary>
+    public string PageContent(int index)
     {
         var offsets = XrefOffsets();
-        foreach (var number in offsets.Keys.OrderBy(n => n))
+        var pages = offsets.Keys.OrderBy(n => n).Where(number =>
         {
             var body = Object(number);
-            if (body.Contains("/Type /Page ", StringComparison.Ordinal) || body.Contains("/Type /Page\n", StringComparison.Ordinal))
-            {
-                var contents = ContentsRegex().Match(body);
-                Assert.True(contents.Success, "/Contents missing");
-                return Encoding.Latin1.GetString(StreamData(int.Parse(contents.Groups[1].Value, CultureInfo.InvariantCulture)));
-            }
-        }
+            return body.Contains("/Type /Page ", StringComparison.Ordinal) || body.Contains("/Type /Page\n", StringComparison.Ordinal);
+        }).ToList();
+        Assert.True(index < pages.Count, $"page {index} not found ({pages.Count} pages)");
 
-        throw new InvalidOperationException("No page object found.");
+        var contents = ContentsRegex().Match(Object(pages[index]));
+        Assert.True(contents.Success, "/Contents missing");
+        return Encoding.Latin1.GetString(StreamData(int.Parse(contents.Groups[1].Value, CultureInfo.InvariantCulture)));
     }
 
     [GeneratedRegex(@"startxref\n(\d+)\n%%EOF")]
