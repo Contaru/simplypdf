@@ -31,8 +31,11 @@ jobs:
       - name: Test
         run: dotnet test --no-build --configuration Release --logger "trx;LogFileName=results.trx"
 
-      - name: Render sample invoice
-        run: dotnet run --no-build --configuration Release --project samples/DianInvoice -- FE0177192.pdf
+      - name: Render samples
+        run: |
+          mkdir -p samples-output
+          dotnet run --no-build --configuration Release --project samples/DianInvoice -- samples-output/FE0177192.pdf
+          dotnet run --no-build --configuration Release --project samples/PosReceipt -- samples-output
 
       - name: Verify generated metrics are up to date
         run: |
@@ -42,6 +45,6 @@ jobs:
       - uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: sample-invoice
-          path: FE0177192.pdf
+          name: sample-pdfs
+          path: samples-output/*.pdf
           if-no-files-found: ignore

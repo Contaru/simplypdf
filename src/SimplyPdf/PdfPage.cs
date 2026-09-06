@@ -1,5 +1,4 @@
 using System.Text;
-using SimplyPdf.Fonts;
 using SimplyPdf.Internal;
 
 namespace SimplyPdf;
@@ -19,7 +18,6 @@ public sealed partial class PdfPage
     private readonly StringBuilder _content = new();
     private readonly HashSet<string> _usedFonts = new(StringComparer.Ordinal);
     private readonly HashSet<string> _usedImages = new(StringComparer.Ordinal);
-    private FontMetricsData _fontMetrics;
     private bool _hasPath;
 
     internal PdfPage(PdfDocument document, PdfPageSize size, PdfMargins margins)
@@ -31,9 +29,8 @@ public sealed partial class PdfPage
         X = margins.Left;
         Y = margins.Top;
 
-        CurrentFont = StandardFont.Helvetica;
+        CurrentFont = PdfFont.Helvetica;
         CurrentFontSize = 12;
-        _fontMetrics = StandardFontMetrics.Get(CurrentFont);
 
         // Flip the coordinate system so that the origin is at the top-left corner.
         _content.Append("1 0 0 -1 0 ").Append(N(Height)).Append(" cm\n");
@@ -57,8 +54,8 @@ public sealed partial class PdfPage
     /// <summary>Vertical position of the text cursor; advances after each text call.</summary>
     public double Y { get; set; }
 
-    /// <summary>Font used by subsequent text calls.</summary>
-    public StandardFont CurrentFont { get; private set; }
+    /// <summary>Font used by subsequent text calls. Helvetica until <see cref="Font(PdfFont, double?)"/> is called.</summary>
+    public PdfFont CurrentFont { get; private set; }
 
     /// <summary>Font size in points used by subsequent text calls.</summary>
     public double CurrentFontSize { get; private set; }

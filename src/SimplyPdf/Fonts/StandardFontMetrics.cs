@@ -41,25 +41,6 @@ internal sealed class FontMetricsData(
     /// output: bbox height minus (ascender - descender).
     /// </summary>
     public int LineGap => BBoxTop - BBoxBottom - (Ascender - Descender);
-
-    /// <summary>Advance width of a WinAnsi-encoded string at the given size.</summary>
-    public double WidthOf(ReadOnlySpan<byte> winAnsi, double size)
-    {
-        long units = 0;
-        foreach (var b in winAnsi)
-        {
-            units += Widths[b];
-        }
-
-        return units * size / 1000.0;
-    }
-
-    /// <summary>Height of one line of text, optionally including the line gap.</summary>
-    public double LineHeight(double size, bool includeGap)
-    {
-        var gap = includeGap ? LineGap : 0;
-        return (Ascender + gap - Descender) * size / 1000.0;
-    }
 }
 
 internal static partial class StandardFontMetrics
