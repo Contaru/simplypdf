@@ -1,0 +1,18 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>SimplyPdf.Samples.PosReceipt</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SimplyPdf\SimplyPdf.csproj" />
+    <PackageReference Include="Net.Codecrete.QrCodeGenerator" Version="2.0.6" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="fonts\*.ttf" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

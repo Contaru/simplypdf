@@ -13,7 +13,7 @@ internal static class TextLayout
     /// Explicit newlines always break; wrapping happens at spaces, or inside a word when a single
     /// word is wider than the box. Pass <see cref="double.PositiveInfinity"/> to disable wrapping.
     /// </summary>
-    public static List<Line> Wrap(string text, double maxWidth, FontMetricsData font, double size)
+    public static List<Line> Wrap(string text, double maxWidth, PdfFont font, double size)
     {
         var lines = new List<Line>();
         var normalised = text.Replace("\r\n", "\n", StringComparison.Ordinal).Replace('\r', '\n').Replace('\t', ' ');
@@ -33,7 +33,7 @@ internal static class TextLayout
         return lines;
     }
 
-    private static void WrapParagraph(byte[] bytes, double maxWidth, FontMetricsData font, double size, List<Line> lines)
+    private static void WrapParagraph(byte[] bytes, double maxWidth, PdfFont font, double size, List<Line> lines)
     {
         var start = 0;
         while (start < bytes.Length)
@@ -43,7 +43,7 @@ internal static class TextLayout
             var i = start;
             while (i < bytes.Length)
             {
-                var advance = font.Widths[bytes[i]] * size / 1000.0;
+                var advance = font.WidthOfCode(bytes[i]) * size / 1000.0;
                 if (lineWidth + advance > maxWidth && i > start)
                 {
                     break;

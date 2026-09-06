@@ -1,4 +1,3 @@
-using SimplyPdf.Fonts;
 using SimplyPdf.Internal;
 
 namespace SimplyPdf;
@@ -10,7 +9,8 @@ namespace SimplyPdf;
 public sealed class PdfDocument
 {
     private readonly List<PdfPage> _pages = [];
-    private readonly Dictionary<StandardFont, string> _fontNames = [];
+    private readonly Dictionary<PdfFont, string> _fontNames = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<PdfFont, HashSet<byte>> _fontUsage = new(ReferenceEqualityComparer.Instance);
     private readonly Dictionary<PdfImage, string> _imageNames = new(ReferenceEqualityComparer.Instance);
 
     /// <summary>Metadata written to the /Info dictionary.</summary>
@@ -60,13 +60,7 @@ public sealed class PdfDocument
         var fontRefs = new Dictionary<string, PdfObjectRef>(StringComparer.Ordinal);
         foreach (var (font, name) in _fontNames)
         {
-            fontRefs[name] = writer.Add(new PdfDictionary
-            {
-                ["Type"] = new PdfName("Font"),
-                ["Subtype"] = new PdfName("Type1"),
-                ["BaseFont"] = new PdfName(StandardFontMetrics.Get(font).PostScriptName),
-                ["Encoding"] = new PdfName("WinAnsiEncoding"),
-            });
+            fontRefs[name] = font.WriteTo(writer, _fontUsage[font]);
         }
 
         var imageRefs = new Dictionary<string, PdfObjectRef>(StringComparer.Ordinal);
@@ -155,12 +149,20 @@ public sealed class PdfDocument
         return buffer.ToArray();
     }
 
-    internal string FontResourceName(StandardFont font)
+    /// <summary>Registers a font on first use and records which codes it draws, for subsetting.</summary>
+    internal string RegisterFontUse(PdfFont font, ReadOnlySpan<byte> codes)
     {
         if (!_fontNames.TryGetValue(font, out var name))
         {
             name = "F" + (_fontNames.Count + 1).ToString(System.Globalization.CultureInfo.InvariantCulture);
             _fontNames[font] = name;
+            _fontUsage[font] = [];
+        }
+
+        var usage = _fontUsage[font];
+        foreach (var code in codes)
+        {
+            usage.Add(code);
         }
 
         return name;
