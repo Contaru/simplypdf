@@ -90,7 +90,10 @@ sb.AppendLine("    ];");
 sb.AppendLine("}");
 
 Directory.CreateDirectory(Path.GetDirectoryName(Path.GetFullPath(outputFile))!);
-File.WriteAllText(outputFile, sb.ToString(), new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+
+// Always LF, whatever the OS, so the CI drift check compares bytes and not line endings.
+var source = sb.ToString().Replace("\r\n", "\n", StringComparison.Ordinal);
+File.WriteAllText(outputFile, source, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
 Console.WriteLine($"Wrote {outputFile} ({fonts.Length} fonts).");
 return 0;
 
