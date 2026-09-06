@@ -8,6 +8,10 @@ It exists for documents like invoices, receipts and labels: fixed layouts drawn 
 coordinates, plus one table that continues on the next page. If you need flowing multi-page
 layouts beyond that, or Unicode beyond Latin-1, use a layout engine instead (QuestPDF, PDFsharp).
 
+```sh
+dotnet add package SimplyPdf
+```
+
 ```csharp
 using SimplyPdf;
 
@@ -132,6 +136,22 @@ tools/AfmToCSharp/      regenerates the font metrics from tools/afm/*.afm
 dotnet test
 dotnet run --project samples/DianInvoice -- FE0177192.pdf
 dotnet run --project samples/PosReceipt -- out/
+```
+
+## Releasing
+
+Bump `<Version>` in `src/SimplyPdf/SimplyPdf.csproj`, merge, then push the matching tag:
+
+```sh
+git tag v0.2.0 && git push origin v0.2.0
+```
+
+`.github/workflows/release.yml` builds, tests, packs and pushes to nuget.org through
+[trusted publishing](https://learn.microsoft.com/nuget/nuget-org/trusted-publishing): no API
+key is stored anywhere. It needs a trusted publishing policy on nuget.org for this repository
+and workflow, and the repository variable `NUGET_USER` set to the nuget.org username that owns it.
+
+```sh
 dotnet run --project samples/PosInvoice -- factura-pos.pdf VT323-Regular.ttf
 ```
 
