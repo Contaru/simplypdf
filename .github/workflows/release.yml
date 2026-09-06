@@ -1,0 +1,68 @@
+name: Release
+
+# Publishes the package to nuget.org when a version tag is pushed (v0.2.0 → SimplyPdf 0.2.0). The tag must
+# match <Version> in SimplyPdf.csproj so the package, the assembly and the repository agree on the number.
+#
+# Authentication is NuGet trusted publishing: no long-lived API key anywhere. NuGet/login swaps this job's
+# GitHub OIDC token for a short-lived key, which requires (once, on nuget.org → account → Trusted Publishing)
+# a policy for owner Contaru, repository simplypdf, workflow file release.yml, and the repository variable
+# NUGET_USER set to the nuget.org username that owns that policy.
+
+on:
+  push:
+    tags: ['v[0-9]+.[0-9]+.[0-9]+']
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    name: Pack and publish to nuget.org
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - name: Version from the tag
+        run: |
+          version="${GITHUB_REF_NAME#v}"
+          declared="$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' src/SimplyPdf/SimplyPdf.csproj)"
+          if [ "$version" != "$declared" ]; then
+            echo "::error::tag v$version does not match <Version>$declared</Version> in SimplyPdf.csproj"
+            exit 1
+          fi
+          if [ -z "${{ vars.NUGET_USER }}" ]; then
+            echo "::error::repository variable NUGET_USER (nuget.org username owning the trusted publishing policy) is not set"
+            exit 1
+          fi
+          echo "VERSION=$version" >> "$GITHUB_ENV"
+
+      - name: Restore
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore --configuration Release -p:ContinuousIntegrationBuild=true
+
+      - name: Test
+        run: dotnet test --no-build --configuration Release
+
+      - name: Pack
+        run: dotnet pack src/SimplyPdf/SimplyPdf.csproj --no-build --configuration Release --output artifacts
+
+      - name: NuGet login (trusted publishing)
+        id: nuget
+        uses: NuGet/login@v1
+        with:
+          user: ${{ vars.NUGET_USER }}
+
+      - name: Push
+        run: dotnet nuget push "artifacts/*.nupkg" --api-key "${{ steps.nuget.outputs.NUGET_API_KEY }}" --source https://api.nuget.org/v3/index.json --skip-duplicate
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SimplyPdf-${{ env.VERSION }}
+          path: artifacts/*
