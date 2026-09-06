@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>SimplyPdf.Samples.DianInvoice</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SimplyPdf\SimplyPdf.csproj" />
+    <!-- QR encoding is deliberately outside the library; this is a tiny MIT port of Nayuki's generator. -->
+    <PackageReference Include="Net.Codecrete.QrCodeGenerator" Version="2.0.6" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="logo.png" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>
