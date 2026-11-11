@@ -23,11 +23,11 @@ internal static class TextLayout
     }
 
     /// <summary>
-    /// One laid-out line of styled text. <paramref name="Ascent"/> and <paramref name="Height"/> are those
-    /// of its tallest segment, so that segments of different sizes share a baseline; an empty line
-    /// takes them from the run it belongs to.
+    /// One laid-out line of styled text. <paramref name="Ascent"/>, <paramref name="Descent"/> and
+    /// <paramref name="Height"/> are those of its tallest segment, so that segments of different
+    /// sizes share a baseline; an empty line takes them from the run it belongs to.
     /// </summary>
-    public sealed record StyledLine(IReadOnlyList<Segment> Segments, bool EndsParagraph, double Ascent, double Height)
+    public sealed record StyledLine(IReadOnlyList<Segment> Segments, bool EndsParagraph, double Ascent, double Descent, double Height)
     {
         /// <summary>Advance width of the whole line in points.</summary>
         public double Width => Segments.Sum(s => s.Width);
@@ -140,6 +140,7 @@ internal static class TextLayout
     {
         var segments = new List<Segment>();
         var ascent = 0.0;
+        var descent = 0.0;
         var height = 0.0;
 
         var from = start;
@@ -154,7 +155,8 @@ internal static class TextLayout
 
             var run = runs[owner];
             segments.Add(new Segment(codes.GetRange(from, to - from).ToArray(), run.Font, run.Size, run.Color));
-            ascent = Math.Max(ascent, run.Font.Ascender * run.Size / 1000.0);
+            ascent = Math.Max(ascent, run.Font.Ascent(run.Size));
+            descent = Math.Max(descent, run.Font.Descent(run.Size));
             height = Math.Max(height, run.Font.LineHeight(run.Size, includeGap: true));
             from = to;
         }
@@ -163,11 +165,12 @@ internal static class TextLayout
         {
             // An empty line still takes the room of the run it sits in.
             var run = runs[start < owners.Count ? owners[start] : emptyLineRun];
-            ascent = run.Font.Ascender * run.Size / 1000.0;
+            ascent = run.Font.Ascent(run.Size);
+            descent = run.Font.Descent(run.Size);
             height = run.Font.LineHeight(run.Size, includeGap: true);
         }
 
-        return new StyledLine(segments, endsParagraph, ascent, height);
+        return new StyledLine(segments, endsParagraph, ascent, descent, height);
     }
 
     /// <summary>

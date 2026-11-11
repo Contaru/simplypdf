@@ -112,6 +112,17 @@ points (1/72 in). `Text(x, y)` places the *top* of the line at `y`; the baseline
 `y + ascender × size / 1000`, and the cursor advances by `(ascender − descender + lineGap) × size / 1000`,
 so layouts written for pdfkit port one to one.
 
+Positions taken from CSS, SVG or a design tool are baselines instead. `TextOptions.Baseline`
+says what `y` refers to (`Top` by default, `Alphabetic`, `Middle` or `Bottom`), and the cursor
+keeps that reference, so consecutive calls flow from baseline to baseline:
+
+```csharp
+page.Text("Total a Pagar", 400, 558.6, new TextOptions { Baseline = TextBaseline.Alphabetic });
+```
+
+`font.Ascent(size)` and `font.Descent(size)` give the distances from the baseline to the top
+and to the bottom of a line, for boxes that have to hug the text.
+
 Drawing follows the PDF model: path calls (`Rect`, `MoveTo`, `LineTo`, `Circle`…) accumulate,
 and the next `Fill` / `Stroke` / `FillAndStroke` / `Clip` consumes them. `Fill(color)` with no
 pending path only sets the fill colour, which is also the text colour.
@@ -122,7 +133,7 @@ pending path only sets the fill colour, which is also the text colour.
 | --- | --- |
 | Pages | Any size (`PdfPageSize.Letter`, `A4`, `.Landscape`, custom), any number of pages |
 | Fonts | Helvetica, Times, Courier families (12 faces) with AFM metrics; TrueType `.ttf` embedded and subsetted |
-| Text | Word wrap, left / centre / right / justify, line gap, `WidthOfString`, `HeightOfString`, `Fit` with ellipsis, cursor flow, runs of different fonts, sizes and colours in one paragraph (`TextRun`) |
+| Text | Word wrap, left / centre / right / justify, line gap, `WidthOfString`, `HeightOfString`, `Fit` with ellipsis, cursor flow, runs of different fonts, sizes and colours in one paragraph (`TextRun`), placement by top, middle, baseline or bottom |
 | Tables | `PdfTable`: fixed column widths, wrapped cells, header band, grid, stripes, drawn in slices that continue on the next page |
 | Encoding | WinAnsi: Latin-1 plus curly quotes, dashes, €, ™… Unsupported characters become `?` |
 | Paths | Rectangles, rounded rectangles, ellipses, circles, polygons, Bézier curves, dashes, line width, clipping |

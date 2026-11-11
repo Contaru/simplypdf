@@ -80,7 +80,7 @@ public sealed partial class PdfPage
         var boxWidth = BoxWidth(x, options);
         var lines = TextLayout.Wrap(text, WrapWidth(x, options), CurrentFont, CurrentFontSize);
         var lineHeight = CurrentLineHeight(includeGap: true) + options.LineGap;
-        var ascent = CurrentFont.Ascender * CurrentFontSize / 1000.0;
+        var baselineOffset = options.BaselineOffset(CurrentFont.Ascent(CurrentFontSize), CurrentFont.Descent(CurrentFontSize));
 
         // Fonts are registered on first use so the document only carries the ones it needs,
         // and the codes drawn are recorded so embedded fonts can be subsetted.
@@ -108,7 +108,7 @@ public sealed partial class PdfPage
                 _content.Append(N(wordSpacing)).Append(" Tw\n");
             }
 
-            _content.Append("1 0 0 1 ").Append(N(lineX)).Append(' ').Append(N(Height - y - ascent)).Append(" Tm\n");
+            _content.Append("1 0 0 1 ").Append(N(lineX)).Append(' ').Append(N(Height - y - baselineOffset)).Append(" Tm\n");
             if (line.Bytes.Length > 0)
             {
                 Document.RegisterFontUse(CurrentFont, line.Bytes);
@@ -175,7 +175,7 @@ public sealed partial class PdfPage
                 _content.Append(N(wordSpacing)).Append(" Tw\n");
             }
 
-            var baseline = Height - y - line.Ascent;
+            var baseline = Height - y - options.BaselineOffset(line.Ascent, line.Descent);
             foreach (var segment in line.Segments)
             {
                 var fontName = Document.RegisterFontUse(segment.Font, segment.Bytes);
