@@ -97,14 +97,21 @@ public sealed class PdfDocument
                 resources["XObject"] = xobjects;
             }
 
-            pageRefs.Add(writer.Add(new PdfDictionary
+            var pageDictionary = new PdfDictionary
             {
                 ["Type"] = new PdfName("Page"),
                 ["Parent"] = pagesRef,
                 ["MediaBox"] = new object[] { 0, 0, page.Width, page.Height },
                 ["Contents"] = contentRef,
                 ["Resources"] = resources,
-            }));
+            };
+
+            if (page.Links.Count > 0)
+            {
+                pageDictionary["Annots"] = page.Links.Select(link => WriteLink(writer, link)).ToList();
+            }
+
+            pageRefs.Add(writer.Add(pageDictionary));
         }
 
         writer.Set(pagesRef, new PdfDictionary
@@ -178,6 +185,21 @@ public sealed class PdfDocument
 
         return name;
     }
+
+    private static PdfObjectRef WriteLink(PdfWriter writer, PdfPage.LinkAnnotation link) =>
+        writer.Add(new PdfDictionary
+        {
+            ["Type"] = new PdfName("Annot"),
+            ["Subtype"] = new PdfName("Link"),
+            ["Rect"] = new object[] { link.Left, link.Bottom, link.Right, link.Top },
+            ["Border"] = new object[] { 0, 0, 0 }, // the default is a 1 pt black box around the link
+            ["F"] = 4, // Print flag, as pdfkit and Acrobat set it; a link has no appearance, so nothing is printed
+            ["A"] = new PdfDictionary
+            {
+                ["S"] = new PdfName("URI"),
+                ["URI"] = link.Uri, // printable ASCII by construction, so it is written as a literal string
+            },
+        });
 
     private static PdfObjectRef WriteImage(PdfWriter writer, PdfImage image)
     {
