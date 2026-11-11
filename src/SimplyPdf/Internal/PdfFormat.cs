@@ -10,20 +10,29 @@ namespace SimplyPdf.Internal;
 internal static class PdfFormat
 {
     /// <summary>Formats a real number with at most three decimals, as PDF viewers expect.</summary>
-    public static string Num(double value)
+    public static string Num(double value) => Real(value, 3, "0.###");
+
+    /// <summary>
+    /// Formats a transformation-matrix coefficient with at most six decimals. A coefficient multiplies
+    /// every coordinate drawn after it, so a thousandth is too coarse: a scale of 0.6001514 written
+    /// as 0.6 moves the foot of an A4 page by 0.2 pt.
+    /// </summary>
+    public static string Coefficient(double value) => Real(value, 6, "0.######");
+
+    private static string Real(double value, int decimals, string format)
     {
         if (double.IsNaN(value) || double.IsInfinity(value))
         {
             throw new ArgumentOutOfRangeException(nameof(value), value, "PDF numbers must be finite.");
         }
 
-        var rounded = Math.Round(value, 3, MidpointRounding.AwayFromZero);
+        var rounded = Math.Round(value, decimals, MidpointRounding.AwayFromZero);
         if (rounded == 0)
         {
             return "0"; // normalises -0 as well
         }
 
-        return rounded.ToString("0.###", CultureInfo.InvariantCulture);
+        return rounded.ToString(format, CultureInfo.InvariantCulture);
     }
 
     /// <summary>Appends a literal string token, e.g. <c>(Hello \(world\))</c>, escaping everything outside printable ASCII.</summary>
