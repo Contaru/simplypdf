@@ -126,6 +126,7 @@ pending path only sets the fill colour, which is also the text colour.
 ```
 src/SimplyPdf/          the library (net10.0)
 tests/SimplyPdf.Tests/  xunit tests, including a PNG encoder used to fabricate inputs
+samples/A4Invoice/      an A4 electronic invoice ported from its wkhtmltopdf original, drawn in CSS pixels
 samples/DianInvoice/    a Colombian electronic invoice reproduced from its pdfkit original
 samples/PosReceipt/     an 80 mm thermal-printer receipt in three OFL monospace fonts
 samples/PosInvoice/     an electronic invoice in receipt form (44-column retail layout) on an 80 mm roll

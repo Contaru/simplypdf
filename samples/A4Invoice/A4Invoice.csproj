@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <IsPackable>false</IsPackable>
+    <RootNamespace>SimplyPdf.Samples.A4Invoice</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\SimplyPdf\SimplyPdf.csproj" />
+    <!-- QR encoding is deliberately outside the library; this is a tiny MIT port of Nayuki's generator. -->
+    <PackageReference Include="Net.Codecrete.QrCodeGenerator" Version="2.0.6" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <None Update="logo.png;side-note.png" CopyToOutputDirectory="PreserveNewest" />
+    <!-- Optional: LiberationSans-Regular.ttf and LiberationSans-Bold.ttf. Without them the sample draws in Helvetica. -->
+    <None Update="fonts\*.ttf" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>

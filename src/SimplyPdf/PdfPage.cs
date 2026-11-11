@@ -82,11 +82,16 @@ public sealed partial class PdfPage
         return this;
     }
 
-    /// <summary>Concatenates an arbitrary matrix [a b c d e f] with the current transformation.</summary>
+    /// <summary>
+    /// Concatenates an arbitrary matrix [a b c d e f] with the current transformation. The four
+    /// coefficients are written with six decimals because they multiply every coordinate drawn
+    /// afterwards; the translation is a coordinate like any other and keeps three.
+    /// </summary>
     public PdfPage Transform(double a, double b, double c, double d, double e, double f)
     {
-        _content.Append(N(a)).Append(' ').Append(N(b)).Append(' ').Append(N(c)).Append(' ')
-            .Append(N(d)).Append(' ').Append(N(e)).Append(' ').Append(N(f)).Append(" cm\n");
+        _content.Append(PdfFormat.Coefficient(a)).Append(' ').Append(PdfFormat.Coefficient(b)).Append(' ')
+            .Append(PdfFormat.Coefficient(c)).Append(' ').Append(PdfFormat.Coefficient(d)).Append(' ')
+            .Append(N(e)).Append(' ').Append(N(f)).Append(" cm\n");
         return this;
     }
 
