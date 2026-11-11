@@ -357,7 +357,7 @@ public sealed class PdfDocument
             ["Subtype"] = new PdfName("Link"),
             ["Rect"] = new object[] { link.Left, link.Bottom, link.Right, link.Top },
             ["Border"] = new object[] { 0, 0, 0 }, // the default is a 1 pt black box around the link
-            ["F"] = 4, // Print flag, as pdfkit and Acrobat set it; a link has no appearance, so nothing is printed
+            ["F"] = 4, // Print flag: PDF/A requires it on every annotation; a link has no appearance, so nothing is printed
             ["A"] = new PdfDictionary
             {
                 ["S"] = new PdfName("URI"),

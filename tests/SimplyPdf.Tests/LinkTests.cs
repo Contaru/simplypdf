@@ -25,6 +25,22 @@ public partial class LinkTests
     }
 
     [Fact]
+    public void Link_in_an_archival_file_carries_what_pdf_a_asks_of_an_annotation()
+    {
+        // ISO 19005-3, 6.3.2: /F with Print set and Hidden, Invisible, NoView and ToggleNoView clear,
+        // which is exactly 4. A link needs nothing else: it is exempt from the appearance stream and
+        // a URI action is allowed. Whether the file conforms is still veraPDF's call; this only keeps
+        // the flag from going missing.
+        var doc = new PdfDocument { Conformance = PdfConformance.PdfA3B };
+        doc.AddPage().Link(40, 100, 200, 12, Target);
+
+        var annotation = Assert.Single(Annotations(new PdfProbe(doc.ToArray()), page: 0));
+
+        Assert.Contains("/F 4 ", annotation, StringComparison.Ordinal);
+        Assert.Contains("/A << /S /URI /URI (https://contaru.com/facturas/FE-1) >>", annotation, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Link_returns_the_page_and_draws_nothing()
     {
         var plain = new PdfDocument { CompressStreams = false };
