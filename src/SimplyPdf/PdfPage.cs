@@ -72,6 +72,7 @@ public sealed partial class PdfPage
     public PdfPage Save()
     {
         _content.Append("q\n");
+        PushMatrix();
         return this;
     }
 
@@ -79,6 +80,7 @@ public sealed partial class PdfPage
     public PdfPage Restore()
     {
         _content.Append("Q\n");
+        PopMatrix();
         return this;
     }
 
@@ -92,6 +94,7 @@ public sealed partial class PdfPage
         _content.Append(PdfFormat.Coefficient(a)).Append(' ').Append(PdfFormat.Coefficient(b)).Append(' ')
             .Append(PdfFormat.Coefficient(c)).Append(' ').Append(PdfFormat.Coefficient(d)).Append(' ')
             .Append(N(e)).Append(' ').Append(N(f)).Append(" cm\n");
+        ConcatMatrix(a, b, c, d, e, f);
         return this;
     }
 
