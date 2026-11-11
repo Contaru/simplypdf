@@ -69,6 +69,11 @@ page.Font(PdfFont.Helvetica, 9)
 Runs of different sizes sit on a common baseline and each line is as tall as its tallest run.
 The page's own font, size and colour are left as they were.
 
+Fonts do not always agree on how tall a line is (Helvetica-Bold asks for 3 % more than
+Helvetica), so a paragraph that mixes them has lines slightly apart in height.
+`TextOptions.LineHeight` fixes the distance from one line to the next, for plain text and for
+runs alike: `new TextOptions { Width = 350, LineHeight = 11 }`.
+
 ## Tables
 
 `PdfTable` (namespace `SimplyPdf.Layout`) is a grid of text cells with fixed column widths. Row
@@ -148,7 +153,7 @@ pending path only sets the fill colour, which is also the text colour.
 | --- | --- |
 | Pages | Any size (`PdfPageSize.Letter`, `A4`, `.Landscape`, custom), any number of pages |
 | Fonts | Helvetica, Times, Courier families (12 faces) with AFM metrics; TrueType `.ttf` embedded and subsetted |
-| Text | Word wrap, left / centre / right / justify, line gap, `WidthOfString`, `HeightOfString`, `Fit` with ellipsis, cursor flow, runs of different fonts, sizes and colours in one paragraph (`TextRun`), placement by top, middle, baseline or bottom |
+| Text | Word wrap, left / centre / right / justify, line gap, fixed line height, `WidthOfString`, `HeightOfString`, `Fit` with ellipsis, cursor flow, runs of different fonts, sizes and colours in one paragraph (`TextRun`), placement by top, middle, baseline or bottom |
 | Tables | `PdfTable`: fixed column widths, wrapped cells, header band, grid, stripes, cells with their own font, colours, alignment and column span, drawn in slices that continue on the next page |
 | Encoding | WinAnsi: Latin-1 plus curly quotes, dashes, €, ™… Unsupported characters become `?` |
 | Paths | Rectangles, rounded rectangles, ellipses, circles, polygons, Bézier curves, dashes, line width, clipping |

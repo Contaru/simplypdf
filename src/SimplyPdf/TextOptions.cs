@@ -69,6 +69,30 @@ public sealed class TextOptions
     public double LineGap { get; init; }
 
     /// <summary>
+    /// Distance from one line to the next in points, in place of the height each line gets from
+    /// its fonts. With it every line of a paragraph advances the same, whatever fonts and sizes
+    /// it mixes, which is how a stylesheet's line height or a form's ruled lines are matched.
+    /// <see cref="LineGap"/> is still added on top. Default <see langword="null"/>: each line is
+    /// as tall as its font, or as its tallest run.
+    /// </summary>
+    public double? LineHeight
+    {
+        get;
+        init
+        {
+            if (value is <= 0 or double.NaN)
+            {
+                throw new ArgumentOutOfRangeException(nameof(value), value, "The line height must be positive.");
+            }
+
+            field = value;
+        }
+    }
+
+    /// <summary>How far the cursor moves after a line that its fonts make <paramref name="natural"/> points tall.</summary>
+    internal double Advance(double natural) => (LineHeight ?? natural) + LineGap;
+
+    /// <summary>
     /// Whether long lines wrap at word boundaries. Explicit newlines always start a new line.
     /// Default true.
     /// </summary>
