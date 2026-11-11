@@ -125,18 +125,7 @@ public static class ReceiptRenderer
         var left = x + (PrintableWidth - side) / 2;
         var top = page.Y + 4;
 
-        for (var row = 0; row < qr.Size; row++)
-        {
-            for (var col = 0; col < qr.Size; col++)
-            {
-                if (qr.GetModule(col, row))
-                {
-                    page.Rect(left + col * module, top + row * module, module, module);
-                }
-            }
-        }
-
-        page.Fill(PdfColor.Black);
+        page.Modules(qr.Size, qr.GetModule, left, top, moduleSize: module); // in the text colour: black
         page.Y = top + side + 6;
     }
 

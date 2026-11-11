@@ -75,7 +75,7 @@ public sealed class Roll
 
     public Roll Separator(char c = '-') => Left(new string(c, Columns));
 
-    /// <summary>A centred QR code drawn as vector squares.</summary>
+    /// <summary>A centred QR code drawn as vector modules, in the roll's one colour.</summary>
     public Roll Qr(string payload, double moduleSize = 1.5, double marginAbove = 4, double marginBelow = 4)
     {
         var qr = QrCode.EncodeText(payload, QrCode.Ecc.Medium);
@@ -83,21 +83,7 @@ public sealed class Roll
         var left = _left + (_printableWidth - side) / 2;
 
         _blocks.Add((marginAbove + side + marginBelow, (page, y) =>
-        {
-            var top = y + marginAbove;
-            for (var row = 0; row < qr.Size; row++)
-            {
-                for (var col = 0; col < qr.Size; col++)
-                {
-                    if (qr.GetModule(col, row))
-                    {
-                        page.Rect(left + col * moduleSize, top + row * moduleSize, moduleSize, moduleSize);
-                    }
-                }
-            }
-
-            page.Fill(PdfColor.Black);
-        }));
+            page.Modules(qr.Size, qr.GetModule, left, y + marginAbove, moduleSize: moduleSize)));
 
         return this;
     }
