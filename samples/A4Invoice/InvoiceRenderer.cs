@@ -1,5 +1,4 @@
 using System.Globalization;
-using System.Text;
 using Net.Codecrete.QrCodeGenerator;
 
 namespace SimplyPdf.Samples.A4Invoice;
@@ -59,7 +58,7 @@ public static class InvoiceRenderer
         page.Image(logo, 102, 37, width: 74, height: 92);
 
         // The issuer block is centred on x = 296 and 180 px wide, which is what wraps the name.
-        var baseline = text.Paragraph([new Run(issuer.Name, Bold: true)], left: 206, right: 386, maxWidth: 180, baseline: 38, pitch: 14, size: 12);
+        var baseline = text.Paragraph([text.Bold(issuer.Name)], left: 206, right: 386, baseline: 38, pitch: 14, size: 12);
         string[] lines =
         [
             $"NIT {Nit(issuer.Nit, issuer.CheckDigit)}", issuer.Address, $"Tel: {issuer.Phone}", issuer.City, issuer.Email, issuer.Website,
@@ -302,19 +301,19 @@ public static class InvoiceRenderer
         text.Color = FooterInk;
 
         var r = invoice.Resolution;
-        Run[] legal =
+        TextRun[] legal =
         [
-            new("A esta factura de venta aplican las normas relativas a la letra de cambio (artículo 5 Ley 1231 de 2008). " +
-                "Con esta el Comprador declara haber recibido real y materialmente las mercancías o prestación de servicios " +
-                "descritos en este título - Valor. "),
-            new($"Número Autorización Electrónica {r.AuthorizationNumber} aprobado en {r.ApprovedOn} prefijo {r.Prefix} " +
-                $"desde el número {r.RangeFrom} al {r.RangeTo} Vigencia: {r.ValidityMonths} Meses", Bold: true),
+            "A esta factura de venta aplican las normas relativas a la letra de cambio (artículo 5 Ley 1231 de 2008). " +
+            "Con esta el Comprador declara haber recibido real y materialmente las mercancías o prestación de servicios " +
+            "descritos en este título - Valor. ",
+            text.Bold($"Número Autorización Electrónica {r.AuthorizationNumber} aprobado en {r.ApprovedOn} prefijo {r.Prefix} " +
+                $"desde el número {r.RangeFrom} al {r.RangeTo} Vigencia: {r.ValidityMonths} Meses"),
         ];
 
         // The box is 950 px wide with 25 px of padding; every line is centred in it, 13 px apart.
-        var baseline = text.Paragraph(legal, left: 19, right: 969, maxWidth: 900, baseline: 1234, pitch: 13, size: 11);
-        baseline = text.Paragraph([new Run(invoice.Issuer.TaxProfile)], 19, 969, 900, baseline, 13, 11);
-        text.Paragraph([new Run("CUFE: ", Bold: true), new Run(invoice.Cufe + " ")], 19, 969, 900, baseline, 13, 11);
+        var baseline = text.Paragraph(legal, left: 44, right: 944, baseline: 1234, pitch: 13, size: 11);
+        baseline = text.Paragraph([invoice.Issuer.TaxProfile], 44, 944, baseline, 13, 11);
+        text.Paragraph([text.Bold("CUFE: "), invoice.Cufe + " "], 44, 944, baseline, 13, 11);
     }
 
     /// <summary>Appends a 1 px CSS border just inside the box as four strips, to be filled like the original's.</summary>
@@ -329,10 +328,7 @@ public static class InvoiceRenderer
 
     private static string Money(decimal value) => value.ToString("N2", CultureInfo.InvariantCulture);
 
-    /// <summary>A stretch of text in one weight; a paragraph is a list of them.</summary>
-    private readonly record struct Run(string Text, bool Bold = false);
-
-    /// <summary>Places single lines of text the way the stylesheet does: by their baseline.</summary>
+    /// <summary>Places text the way the stylesheet does: by its baseline, with a fixed pitch between lines.</summary>
     private sealed class Typesetter(PdfPage page, Typeface face)
     {
         /// <summary>Colour of the text drawn from now on.</summary>
@@ -347,76 +343,26 @@ public static class InvoiceRenderer
         public void Right(string text, double right, double baseline, bool bold = false, double size = 12) =>
             Draw(text, 0, baseline, bold, size, right, TextAlign.Right);
 
+        /// <summary>A run in the bold face; plain strings are runs in the regular one.</summary>
+        public TextRun Bold(string text) => new(text, face.Bold);
+
         /// <summary>
-        /// Wraps runs of regular and bold text into lines of at most <paramref name="maxWidth"/> and
-        /// centres each one between <paramref name="left"/> and <paramref name="right"/>,
-        /// <paramref name="pitch"/> apart. SimplyPdf has no inline spans, so the words are measured
-        /// here. Returns the baseline that follows the last line.
+        /// Draws runs of regular and bold text as one paragraph, wrapped and centred between
+        /// <paramref name="left"/> and <paramref name="right"/> with its baselines
+        /// <paramref name="pitch"/> apart. Returns the baseline that follows the last line.
         /// </summary>
-        public double Paragraph(IReadOnlyList<Run> runs, double left, double right, double maxWidth, double baseline, double pitch, double size)
+        public double Paragraph(IReadOnlyList<TextRun> runs, double left, double right, double baseline, double pitch, double size)
         {
-            // One entry per word. A word knows whether a space follows it: lines only break there.
-            var words = new List<(string Text, bool Bold, bool SpaceAfter)>();
-            foreach (var run in runs)
+            var options = new TextOptions
             {
-                var parts = run.Text.Split(' ');
-                for (var i = 0; i < parts.Length; i++)
-                {
-                    words.Add((parts[i], run.Bold, i < parts.Length - 1));
-                }
-            }
+                Width = right - left,
+                Align = TextAlign.Center,
+                Baseline = TextBaseline.Alphabetic,
+                LineHeight = pitch,
+            };
 
-            var line = new List<(string Text, bool Bold, bool SpaceAfter)>();
-            var lineWidth = 0.0;
-            foreach (var word in words)
-            {
-                var width = Font(word.Bold).WidthOfString(word.Text, size);
-                var gap = line.Count > 0 && line[^1].SpaceAfter ? Font(line[^1].Bold).WidthOfString(" ", size) : 0;
-                if (gap > 0 && lineWidth + gap + width > maxWidth)
-                {
-                    DrawLine(line, left, right, baseline, size);
-                    baseline += pitch;
-                    line.Clear();
-                    lineWidth = gap = 0;
-                }
-
-                line.Add(word);
-                lineWidth += gap + width;
-            }
-
-            DrawLine(line, left, right, baseline, size);
-            return baseline + pitch;
-        }
-
-        /// <summary>Joins the words into one string per weight and draws them side by side, centred.</summary>
-        private void DrawLine(List<(string Text, bool Bold, bool SpaceAfter)> words, double left, double right, double baseline, double size)
-        {
-            var segments = new List<(string Text, bool Bold, double Width)>();
-            var builder = new StringBuilder();
-            for (var i = 0; i < words.Count; i++)
-            {
-                var (word, bold, spaceAfter) = words[i];
-                builder.Append(word);
-                var last = i == words.Count - 1;
-                if (spaceAfter && !last)
-                {
-                    builder.Append(' '); // the space at a line break is dropped, like in HTML
-                }
-
-                if (last || words[i + 1].Bold != bold)
-                {
-                    var segment = builder.ToString();
-                    segments.Add((segment, bold, Font(bold).WidthOfString(segment, size)));
-                    builder.Clear();
-                }
-            }
-
-            var x = left + (right - left - segments.Sum(s => s.Width)) / 2;
-            foreach (var (segment, bold, width) in segments)
-            {
-                Draw(segment, x, baseline, bold, size);
-                x += width;
-            }
+            page.FillColor(Color).Font(face.Regular, size).Text(runs, left, baseline, options);
+            return page.Y; // placed by baseline, the cursor is the next baseline
         }
 
         private PdfFont Font(bool bold) => bold ? face.Bold : face.Regular;
@@ -426,8 +372,8 @@ public static class InvoiceRenderer
         {
             if (text.Length > 0)
             {
-                var options = new TextOptions { Width = width, Align = align, LineBreak = false };
-                page.FillColor(Color).Font(Font(bold), size).Text(text, x, baseline - face.Ascent * size, options);
+                var options = new TextOptions { Width = width, Align = align, LineBreak = false, Baseline = TextBaseline.Alphabetic };
+                page.FillColor(Color).Font(Font(bold), size).Text(text, x, baseline, options);
             }
         }
     }
