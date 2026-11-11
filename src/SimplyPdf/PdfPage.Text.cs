@@ -48,7 +48,7 @@ public sealed partial class PdfPage
         ArgumentNullException.ThrowIfNull(text);
         options ??= TextOptions.Default;
         var lines = TextLayout.Wrap(text, WrapWidth(X, options), CurrentFont, CurrentFontSize);
-        return lines.Count * (CurrentLineHeight(includeGap: true) + options.LineGap);
+        return lines.Count * options.Advance(CurrentLineHeight(includeGap: true));
     }
 
     /// <summary>
@@ -79,7 +79,7 @@ public sealed partial class PdfPage
         var y = Y;
         var boxWidth = BoxWidth(x, options);
         var lines = TextLayout.Wrap(text, WrapWidth(x, options), CurrentFont, CurrentFontSize);
-        var lineHeight = CurrentLineHeight(includeGap: true) + options.LineGap;
+        var lineHeight = options.Advance(CurrentLineHeight(includeGap: true));
         var baselineOffset = options.BaselineOffset(CurrentFont.Ascent(CurrentFontSize), CurrentFont.Descent(CurrentFontSize));
 
         // Fonts are registered on first use so the document only carries the ones it needs,
@@ -199,7 +199,7 @@ public sealed partial class PdfPage
                 segmentX += segment.Width + wordSpacing * segment.Spaces;
             }
 
-            y += line.Height + options.LineGap;
+            y += options.Advance(line.Height);
         }
 
         _content.Append("Q\n");
@@ -216,7 +216,7 @@ public sealed partial class PdfPage
     {
         var styled = Resolve(runs);
         options ??= TextOptions.Default;
-        return TextLayout.Wrap(styled, WrapWidth(X, options)).Sum(line => line.Height + options.LineGap);
+        return TextLayout.Wrap(styled, WrapWidth(X, options)).Sum(line => options.Advance(line.Height));
     }
 
     /// <summary>Fills in the font and size each run leaves to the page. No runs at all behave like an empty string.</summary>
