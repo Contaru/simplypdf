@@ -353,16 +353,16 @@ public static class InvoiceRenderer
         /// </summary>
         public double Paragraph(IReadOnlyList<TextRun> runs, double left, double right, double baseline, double pitch, double size)
         {
-            var top = baseline - face.Ascent * size;
             var options = new TextOptions
             {
                 Width = right - left,
                 Align = TextAlign.Center,
+                Baseline = TextBaseline.Alphabetic,
                 LineGap = pitch - face.Regular.LineHeight(size, includeGap: true), // the stylesheet's line pitch
             };
 
-            page.FillColor(Color).Font(face.Regular, size).Text(runs, left, top, options);
-            return baseline + Math.Round((page.Y - top) / pitch) * pitch;
+            page.FillColor(Color).Font(face.Regular, size).Text(runs, left, baseline, options);
+            return baseline + Math.Round((page.Y - baseline) / pitch) * pitch;
         }
 
         private PdfFont Font(bool bold) => bold ? face.Bold : face.Regular;
@@ -372,8 +372,8 @@ public static class InvoiceRenderer
         {
             if (text.Length > 0)
             {
-                var options = new TextOptions { Width = width, Align = align, LineBreak = false };
-                page.FillColor(Color).Font(Font(bold), size).Text(text, x, baseline - face.Ascent * size, options);
+                var options = new TextOptions { Width = width, Align = align, LineBreak = false, Baseline = TextBaseline.Alphabetic };
+                page.FillColor(Color).Font(Font(bold), size).Text(text, x, baseline, options);
             }
         }
     }
