@@ -90,8 +90,8 @@ public partial class TextRunTests
         var styled = TextLayout.Wrap([new TextLayout.StyledRun(text, Regular, 10, null)], width);
 
         Assert.Equal(
-            plain.Select(l => (Latin1(l.Bytes), l.EndsParagraph)),
-            styled.Select(l => (string.Concat(l.Segments.Select(s => Latin1(s.Bytes))), l.EndsParagraph)));
+            plain.Select(l => (Latin1(l.Codes), l.EndsParagraph)),
+            styled.Select(l => (string.Concat(l.Segments.Select(s => Latin1(s.Codes))), l.EndsParagraph)));
         Assert.All(styled, l => Assert.Equal(Regular.LineHeight(10, includeGap: true), l.Height, 9));
     }
 
@@ -102,7 +102,7 @@ public partial class TextRunTests
             [new TextLayout.StyledRun("a\n", Bold, 10, null), new TextLayout.StyledRun("\nb", Regular, 20, null)],
             double.PositiveInfinity);
 
-        Assert.Equal(["a", "", "b"], lines.Select(l => string.Concat(l.Segments.Select(s => Latin1(s.Bytes)))));
+        Assert.Equal(["a", "", "b"], lines.Select(l => string.Concat(l.Segments.Select(s => Latin1(s.Codes)))));
         Assert.Equal(Regular.LineHeight(20, includeGap: true), lines[1].Height, 9); // the blank line sits in the second run
     }
 
@@ -209,7 +209,8 @@ public partial class TextRunTests
         }).ToList();
     }
 
-    private static string Latin1(byte[] bytes) => System.Text.Encoding.Latin1.GetString(bytes);
+    /// <summary>The text behind the codes of a standard font, which are WinAnsi bytes.</summary>
+    private static string Latin1(TextCode[] codes) => string.Concat(codes.Select(code => (char)code.Value));
 
     [GeneratedRegex(@"BT\n/(F\d+) ([\d.]+) Tf\n1 0 0 1 ([\d.-]+) ([\d.-]+) Tm\n\((.*)\) Tj\nET")]
     private static partial Regex SegmentRegex();

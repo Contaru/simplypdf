@@ -6,7 +6,7 @@ no licence gate.
 
 It exists for documents like invoices, receipts and labels: fixed layouts drawn at known
 coordinates, plus one table that continues on the next page. If you need flowing multi-page
-layouts beyond that, or Unicode beyond Latin-1, use a layout engine instead (QuestPDF, PDFsharp).
+layouts beyond that, or scripts that need shaping, use a layout engine instead (QuestPDF, PDFsharp).
 
 ```sh
 dotnet add package SimplyPdf
@@ -43,8 +43,11 @@ var mono = PdfFont.FromFile("fonts/ShareTechMono-Regular.ttf"); // load once, re
 page.Font(mono, 9).Text("FACTURA DE VENTA POS-0012345", 10, 20);
 ```
 
-Text is WinAnsi-encoded in both cases (Latin-1 plus curly quotes, dashes, €, ™); characters the
-font lacks show its `.notdef` glyph. The font's OS/2 embedding permissions are honoured:
+An embedded font draws every character it has a glyph for, whatever the alphabet: `Łódź`,
+`Ősz`, `Ω`. The text is written as glyph ids with a map back to Unicode, so viewers can copy
+and search it; a character the font lacks shows its `.notdef` glyph. The standard 14 stay
+limited to WinAnsi (Latin-1 plus curly quotes, dashes, €, ™) and write `?` for anything else,
+so a customer name outside Latin-1 needs an embedded font. The font's OS/2 embedding permissions are honoured:
 *restricted licence* and *bitmap-only* fonts are rejected, *no subsetting* fonts are embedded
 whole. CFF-based `.otf` files and `.ttc` collections are not supported — use `.ttf` with `glyf`
 outlines (every Google Fonts download qualifies).
@@ -155,7 +158,7 @@ pending path only sets the fill colour, which is also the text colour.
 | Fonts | Helvetica, Times, Courier families (12 faces) with AFM metrics; TrueType `.ttf` embedded and subsetted |
 | Text | Word wrap, left / centre / right / justify, line gap, fixed line height, `WidthOfString`, `HeightOfString`, `Fit` with ellipsis, cursor flow, runs of different fonts, sizes and colours in one paragraph (`TextRun`), placement by top, middle, baseline or bottom |
 | Tables | `PdfTable`: fixed column widths, wrapped cells, header band, grid, stripes, cells with their own font, colours, alignment and column span, drawn in slices that continue on the next page |
-| Encoding | WinAnsi: Latin-1 plus curly quotes, dashes, €, ™… Unsupported characters become `?` |
+| Encoding | Embedded fonts: any character the font has, as glyph ids with a `ToUnicode` map (text can be copied and searched). Standard fonts: WinAnsi, Latin-1 plus curly quotes, dashes, €, ™…; anything else becomes `?` |
 | Paths | Rectangles, rounded rectangles, ellipses, circles, polygons, Bézier curves, dashes, line width, clipping |
 | Transforms | `Save` / `Restore`, `Translate`, `Scale`, `Rotate` around an origin |
 | Images | PNG (all colour types and bit depths, transparency, Adam7), JPEG (embedded as-is), raw RGB/grey pixels |
@@ -163,7 +166,9 @@ pending path only sets the fill colour, which is also the text colour.
 
 ## What it does not do
 
-- Unicode beyond WinAnsi (no CJK, no emoji), even with embedded fonts.
+- Text shaping. Characters map to glyphs one to one, left to right, so scripts that need shaping or
+  run right to left (Arabic, Hebrew, Indic) and colour emoji do not come out right. CJK works with a
+  font that has the glyphs, but lines only break at spaces.
 - Kerning. Widths are plain advance widths (pdfkit applies AFM kern pairs; differences are fractions of a point).
 - Automatic page breaks for free text: text past the bottom of the page is simply off the page (tables paginate through `PdfTable.Draw`).
 - PDF/A, encryption, forms, annotations, links, bookmarks.

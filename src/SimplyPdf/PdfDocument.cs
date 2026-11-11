@@ -10,7 +10,7 @@ public sealed class PdfDocument
 {
     private readonly List<PdfPage> _pages = [];
     private readonly Dictionary<PdfFont, string> _fontNames = new(ReferenceEqualityComparer.Instance);
-    private readonly Dictionary<PdfFont, HashSet<byte>> _fontUsage = new(ReferenceEqualityComparer.Instance);
+    private readonly Dictionary<PdfFont, HashSet<ushort>> _fontUsage = new(ReferenceEqualityComparer.Instance);
     private readonly Dictionary<PdfImage, string> _imageNames = new(ReferenceEqualityComparer.Instance);
 
     /// <summary>Metadata written to the /Info dictionary.</summary>
@@ -150,7 +150,7 @@ public sealed class PdfDocument
     }
 
     /// <summary>Registers a font on first use and records which codes it draws, for subsetting.</summary>
-    internal string RegisterFontUse(PdfFont font, ReadOnlySpan<byte> codes)
+    internal string RegisterFontUse(PdfFont font, ReadOnlySpan<Text.TextCode> codes)
     {
         if (!_fontNames.TryGetValue(font, out var name))
         {
@@ -162,7 +162,7 @@ public sealed class PdfDocument
         var usage = _fontUsage[font];
         foreach (var code in codes)
         {
-            usage.Add(code);
+            usage.Add(code.Value);
         }
 
         return name;

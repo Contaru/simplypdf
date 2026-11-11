@@ -12,6 +12,7 @@ internal sealed class TrueTypeFont
 {
     private readonly Dictionary<string, (int Offset, int Length)> _tables = new(StringComparer.Ordinal);
     private readonly Dictionary<int, ushort> _characterMap = [];
+    private Dictionary<ushort, int>? _codePoints;
     private uint[] _glyphOffsets = [];
     private ushort[] _advanceWidths = [];
 
@@ -96,6 +97,31 @@ internal sealed class TrueTypeFont
 
     /// <summary>Glyph index for a Unicode code point, or 0 (.notdef) when the font lacks it.</summary>
     public ushort GlyphFor(int codePoint) => _characterMap.TryGetValue(codePoint, out var glyph) ? glyph : (ushort)0;
+
+    /// <summary>
+    /// The lowest code point the character map sends to <paramref name="glyphId"/>, or -1 when none
+    /// does: what a reader gets back when it copies that glyph out of a PDF.
+    /// </summary>
+    public int CodePointFor(ushort glyphId)
+    {
+        // Built on first use; two threads racing here build the same map, so no lock is needed.
+        var map = _codePoints;
+        if (map is null)
+        {
+            map = [];
+            foreach (var (codePoint, glyph) in _characterMap)
+            {
+                if (!map.TryGetValue(glyph, out var known) || codePoint < known)
+                {
+                    map[glyph] = codePoint;
+                }
+            }
+
+            _codePoints = map;
+        }
+
+        return map.TryGetValue(glyphId, out var found) ? found : -1;
+    }
 
     public bool HasGlyph(int codePoint) => _characterMap.ContainsKey(codePoint);
 

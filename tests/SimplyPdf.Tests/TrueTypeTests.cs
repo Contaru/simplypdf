@@ -77,7 +77,7 @@ public partial class TrueTypeTests
     }
 
     [Fact]
-    public void Embedded_font_is_written_as_a_subsetted_truetype_simple_font()
+    public void Embedded_font_is_written_as_a_subsetted_composite_font()
     {
         var font = PdfFont.FromFile(FontPath("ShareTechMono-Regular.ttf"));
         var doc = new PdfDocument();
@@ -87,16 +87,23 @@ public partial class TrueTypeTests
         var probe = new PdfProbe(doc.ToArray());
         var objects = probe.XrefOffsets().Keys.Select(n => (Number: n, Body: probe.Object(n))).ToList();
 
-        var fontDict = Assert.Single(objects, o => o.Body.Contains("/Subtype /TrueType", StringComparison.Ordinal));
+        var fontDict = Assert.Single(objects, o => o.Body.Contains("/Subtype /Type0", StringComparison.Ordinal));
         Assert.Matches(SubsetBaseFontRegex(), fontDict.Body);
-        Assert.Contains("/FirstChar 32", fontDict.Body, StringComparison.Ordinal);
-        Assert.Contains("/LastChar 255", fontDict.Body, StringComparison.Ordinal);
-        Assert.Contains("/Encoding /WinAnsiEncoding", fontDict.Body, StringComparison.Ordinal);
-        var widths = WidthsRegex().Match(fontDict.Body).Groups[1].Value.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-        Assert.Equal(224, widths.Length);
+        Assert.Contains("/Encoding /Identity-H", fontDict.Body, StringComparison.Ordinal);
+        Assert.Contains("/ToUnicode", fontDict.Body, StringComparison.Ordinal);
+
+        var descendant = Assert.Single(objects, o => o.Body.Contains("/Subtype /CIDFontType2", StringComparison.Ordinal));
+        Assert.Contains("/CIDToGIDMap /Identity", descendant.Body, StringComparison.Ordinal);
+        Assert.Contains("/Ordering (Identity)", descendant.Body, StringComparison.Ordinal);
+
+        // One width per glyph drawn, and this font is monospaced: the two pages use 19 distinct characters.
+        var widths = WidthsRegex().Match(descendant.Body).Groups[1].Value;
+        var perGlyph = WidthRunRegex().Matches(widths).SelectMany(run => run.Groups[1].Value.Split(' ', StringSplitOptions.RemoveEmptyEntries)).ToList();
+        Assert.Equal("Recibo POS ñ á €Segunda página".Distinct().Count(), perGlyph.Count);
+        Assert.Single(perGlyph.Distinct());
 
         var descriptor = Assert.Single(objects, o => o.Body.Contains("/Type /FontDescriptor", StringComparison.Ordinal));
-        Assert.Contains("/Flags 33", descriptor.Body, StringComparison.Ordinal); // nonsymbolic + fixed pitch
+        Assert.Contains("/Flags 5", descriptor.Body, StringComparison.Ordinal); // symbolic + fixed pitch
         Assert.Contains("/FontFile2", descriptor.Body, StringComparison.Ordinal);
 
         var fontFile = Assert.Single(objects, o => o.Body.Contains("/Length1", StringComparison.Ordinal));
@@ -127,13 +134,28 @@ public partial class TrueTypeTests
     }
 
     [Fact]
-    public void Widths_follow_winansi_glyph_names_for_nbsp_and_soft_hyphen()
+    public void Spaces_and_hyphens_a_font_lacks_fall_back_to_its_plain_ones()
     {
         var font = PdfFont.FromBytes(ShareTechMono());
+        var space = font.Encode(" ")[0].Value;
+        var hyphen = font.Encode("-")[0].Value;
 
-        Assert.Equal(font.WidthOfCode((byte)' '), font.WidthOfCode(0xA0));
-        Assert.Equal(font.WidthOfCode((byte)'-'), font.WidthOfCode(0xAD));
-        Assert.True(font.WidthOfCode((byte)'W') > 0);
+        // Whether the font maps them itself or not, none of these may end up as .notdef.
+        foreach (var c in "   ")
+        {
+            Assert.Equal(font.WidthOfCode(space), font.WidthOfCode(font.Encode(c.ToString())[0].Value));
+            Assert.NotEqual(0, font.Encode(c.ToString())[0].Value);
+        }
+
+        foreach (var c in "­‐‑−")
+        {
+            Assert.NotEqual(0, font.Encode(c.ToString())[0].Value);
+        }
+
+        Assert.NotEqual(0, hyphen);
+        Assert.False(font.Encode(" ")[0].IsSpace); // a no-break space is no place to break a line
+        Assert.True(font.Encode(" ")[0].IsSpace);
+        Assert.True(font.WidthOfCode(font.Encode("W")[0].Value) > 0);
     }
 
     [Fact]
@@ -160,7 +182,7 @@ public partial class TrueTypeTests
         var probe = new PdfProbe(doc.ToArray());
         var objects = probe.XrefOffsets().Keys.Select(n => (Number: n, Body: probe.Object(n))).ToList();
         var fontFile = Assert.Single(objects, o => o.Body.Contains("/Length1", StringComparison.Ordinal));
-        var fontDict = Assert.Single(objects, o => o.Body.Contains("/Subtype /TrueType", StringComparison.Ordinal));
+        var fontDict = Assert.Single(objects, o => o.Body.Contains("/Subtype /Type0", StringComparison.Ordinal));
 
         Assert.Equal(data, probe.StreamData(fontFile.Number));
         Assert.Contains("/BaseFont /ShareTechMono-Regular", fontDict.Body, StringComparison.Ordinal);
@@ -191,8 +213,11 @@ public partial class TrueTypeTests
     [GeneratedRegex(@"/BaseFont /[A-Z]{6}\+ShareTechMono-Regular")]
     private static partial Regex SubsetBaseFontRegex();
 
-    [GeneratedRegex(@"/Widths \[([^\]]*)\]")]
+    [GeneratedRegex(@"/W \[(.*)\] /CIDToGIDMap")]
     private static partial Regex WidthsRegex();
+
+    [GeneratedRegex(@"\d+ \[([^\]]*)\]")]
+    private static partial Regex WidthRunRegex();
 
     [GeneratedRegex(@"/Length1 (\d+)")]
     private static partial Regex Length1Regex();
