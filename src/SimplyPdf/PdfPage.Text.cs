@@ -29,7 +29,7 @@ public sealed partial class PdfPage
     public double WidthOfString(string text)
     {
         ArgumentNullException.ThrowIfNull(text);
-        return CurrentFont.WidthOf(WinAnsiEncoding.Encode(text), CurrentFontSize);
+        return CurrentFont.WidthOfString(text, CurrentFontSize);
     }
 
     /// <summary>
@@ -48,7 +48,7 @@ public sealed partial class PdfPage
         ArgumentNullException.ThrowIfNull(text);
         options ??= TextOptions.Default;
         var lines = TextLayout.Wrap(text, WrapWidth(X, options), CurrentFont, CurrentFontSize);
-        return lines.Count * (CurrentLineHeight(includeGap: true) + options.LineGap);
+        return lines.Count * options.Advance(CurrentLineHeight(includeGap: true));
     }
 
     /// <summary>
@@ -79,7 +79,7 @@ public sealed partial class PdfPage
         var y = Y;
         var boxWidth = BoxWidth(x, options);
         var lines = TextLayout.Wrap(text, WrapWidth(x, options), CurrentFont, CurrentFontSize);
-        var lineHeight = CurrentLineHeight(includeGap: true) + options.LineGap;
+        var lineHeight = options.Advance(CurrentLineHeight(includeGap: true));
         var baselineOffset = options.BaselineOffset(CurrentFont.Ascent(CurrentFontSize), CurrentFont.Descent(CurrentFontSize));
 
         // Fonts are registered on first use so the document only carries the ones it needs,
@@ -93,7 +93,7 @@ public sealed partial class PdfPage
 
         foreach (var line in lines)
         {
-            var lineWidth = CurrentFont.WidthOf(line.Bytes, CurrentFontSize);
+            var lineWidth = CurrentFont.WidthOf(line.Codes, CurrentFontSize);
             var lineX = options.Align switch
             {
                 TextAlign.Center => x + (boxWidth - lineWidth) / 2,
@@ -101,19 +101,25 @@ public sealed partial class PdfPage
                 _ => x,
             };
 
+            // Justification widens the spaces: with the Tw operator where it works, and otherwise
+            // by the font itself when it shows the line.
+            var wordSpacing = 0.0;
             if (options.Align == TextAlign.Justify)
             {
-                var spaces = line.EndsParagraph ? 0 : line.Bytes.Count(b => b == (byte)' ');
-                var wordSpacing = spaces > 0 ? (boxWidth - lineWidth) / spaces : 0;
-                _content.Append(N(wordSpacing)).Append(" Tw\n");
+                var spaces = line.EndsParagraph ? 0 : line.Codes.Count(code => code.IsSpace);
+                wordSpacing = spaces > 0 ? (boxWidth - lineWidth) / spaces : 0;
+                if (CurrentFont.WordSpacingOperatorApplies)
+                {
+                    _content.Append(N(wordSpacing)).Append(" Tw\n");
+                    wordSpacing = 0;
+                }
             }
 
             _content.Append("1 0 0 1 ").Append(N(lineX)).Append(' ').Append(N(Height - y - baselineOffset)).Append(" Tm\n");
-            if (line.Bytes.Length > 0)
+            if (line.Codes.Length > 0)
             {
-                Document.RegisterFontUse(CurrentFont, line.Bytes);
-                PdfFormat.AppendLiteral(_content, line.Bytes);
-                _content.Append(" Tj\n");
+                Document.RegisterFontUse(CurrentFont, line.Codes);
+                CurrentFont.AppendShow(_content, line.Codes, wordSpacing, CurrentFontSize);
             }
 
             y += lineHeight;
@@ -178,7 +184,7 @@ public sealed partial class PdfPage
             var baseline = Height - y - options.BaselineOffset(line.Ascent, line.Descent);
             foreach (var segment in line.Segments)
             {
-                var fontName = Document.RegisterFontUse(segment.Font, segment.Bytes);
+                var fontName = Document.RegisterFontUse(segment.Font, segment.Codes);
                 _usedFonts.Add(fontName);
 
                 if (segment.Color is { } color)
@@ -188,8 +194,8 @@ public sealed partial class PdfPage
 
                 _content.Append("BT\n/").Append(fontName).Append(' ').Append(N(segment.Size)).Append(" Tf\n1 0 0 1 ")
                     .Append(N(segmentX)).Append(' ').Append(N(baseline)).Append(" Tm\n");
-                PdfFormat.AppendLiteral(_content, segment.Bytes);
-                _content.Append(" Tj\nET\n");
+                segment.Font.AppendShow(_content, segment.Codes, segment.Font.WordSpacingOperatorApplies ? 0 : wordSpacing, segment.Size);
+                _content.Append("ET\n");
 
                 if (segment.Color is not null)
                 {
@@ -199,7 +205,7 @@ public sealed partial class PdfPage
                 segmentX += segment.Width + wordSpacing * segment.Spaces;
             }
 
-            y += line.Height + options.LineGap;
+            y += options.Advance(line.Height);
         }
 
         _content.Append("Q\n");
@@ -209,14 +215,14 @@ public sealed partial class PdfPage
 
     /// <summary>Advance width of <paramref name="runs"/> laid end to end on one line, in points.</summary>
     public double WidthOfString(IEnumerable<TextRun> runs) =>
-        Resolve(runs).Sum(run => run.Font.WidthOf(WinAnsiEncoding.Encode(run.Text), run.Size));
+        Resolve(runs).Sum(run => run.Font.WidthOfString(run.Text, run.Size));
 
     /// <summary>Total height <paramref name="runs"/> would occupy if drawn as one paragraph with the given options.</summary>
     public double HeightOfString(IEnumerable<TextRun> runs, TextOptions? options = null)
     {
         var styled = Resolve(runs);
         options ??= TextOptions.Default;
-        return TextLayout.Wrap(styled, WrapWidth(X, options)).Sum(line => line.Height + options.LineGap);
+        return TextLayout.Wrap(styled, WrapWidth(X, options)).Sum(line => options.Advance(line.Height));
     }
 
     /// <summary>Fills in the font and size each run leaves to the page. No runs at all behave like an empty string.</summary>
