@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using SimplyPdf.Text;
 
 namespace SimplyPdf.Layout;
@@ -12,7 +13,9 @@ public readonly record struct PdfTableSlice(int NextRow, double Bottom, bool IsC
 /// A grid of text cells with fixed column widths that draws itself one slice at a time, so a long
 /// table can continue on the next page: <see cref="Draw"/> paints as many rows as fit above a given
 /// bottom, repeats the header on every slice, and reports where it stopped. Row heights follow the
-/// wrapped cell text, measured with the same layout the page uses to draw it.
+/// wrapped cell text, measured with the same layout the page uses to draw it. Cells are plain
+/// strings in the table's style, or <see cref="PdfTableCell"/>s where one needs its own font,
+/// colours, alignment or column span.
 /// </summary>
 /// <remarks>
 /// The typical loop is: draw; while the slice is not complete, add a page and draw again from
@@ -22,8 +25,12 @@ public readonly record struct PdfTableSlice(int NextRow, double Bottom, bool IsC
 /// </remarks>
 public sealed class PdfTable
 {
+    private static readonly PdfTableCell EmptyCell = new(string.Empty);
+
     private readonly PdfTableColumn[] _columns;
-    private readonly List<string[]> _rows = [];
+    private readonly PdfTableCell[] _header;
+    private readonly List<PdfTableCell[]> _rows = [];
+    private readonly List<string[]> _rowTexts = [];
     private readonly PdfTableStyle _style;
     private double? _headerHeight;
 
@@ -37,6 +44,7 @@ public sealed class PdfTable
             throw new ArgumentException("A table needs at least one column.", nameof(columns));
         }
 
+        _header = _columns.Select(c => new PdfTableCell(c.Header) { Align = c.HeaderAlign }).ToArray();
         _style = style ?? PdfTableStyle.Default;
     }
 
@@ -46,8 +54,11 @@ public sealed class PdfTable
     /// <summary>The style the table is drawn with.</summary>
     public PdfTableStyle Style => _style;
 
-    /// <summary>Rows added so far, each as one string per column.</summary>
-    public IReadOnlyList<IReadOnlyList<string>> Rows => _rows;
+    /// <summary>
+    /// Rows added so far, each as one string per column: the text of the cell that starts at that
+    /// column, and an empty string for the columns a spanning cell covers.
+    /// </summary>
+    public IReadOnlyList<IReadOnlyList<string>> Rows => _rowTexts;
 
     /// <summary>Number of body rows.</summary>
     public int RowCount => _rows.Count;
@@ -56,9 +67,10 @@ public sealed class PdfTable
     public double Width => _columns.Sum(c => c.Width);
 
     /// <summary>Height of the header row, from its wrapped captions plus the vertical padding.</summary>
-    public double HeaderHeight => _headerHeight ??= RowHeightOf(_columns.Select(c => c.Header).ToArray(), _style.HeaderFont, _style.HeaderFontSize);
+    public double HeaderHeight => _headerHeight ??= RowHeightOf(_header, _style.HeaderFont, _style.HeaderFontSize);
 
     /// <summary>Adds a body row; one cell per column, null cells count as empty.</summary>
+    [OverloadResolutionPriority(1)] // plain strings (and bare nulls) stay on this overload
     public PdfTable AddRow(params string?[] cells)
     {
         ArgumentNullException.ThrowIfNull(cells);
@@ -67,8 +79,40 @@ public sealed class PdfTable
             throw new ArgumentException($"Expected {_columns.Length} cells, got {cells.Length}.", nameof(cells));
         }
 
-        _rows.Add(cells.Select(c => c ?? string.Empty).ToArray());
-        return this;
+        return Add(cells.Select(c => new PdfTableCell(c ?? string.Empty)).ToArray());
+    }
+
+    /// <summary>
+    /// Adds a body row of cells that may carry their own style or span several columns; plain strings
+    /// can be mixed in and null cells count as empty. The column spans must add up to the column count.
+    /// </summary>
+    public PdfTable AddRow(params PdfTableCell?[] cells)
+    {
+        ArgumentNullException.ThrowIfNull(cells);
+
+        var row = cells.Select(c => c ?? EmptyCell).ToArray();
+        var spanned = 0;
+        foreach (var cell in row)
+        {
+            if (cell.ColumnSpan < 1)
+            {
+                throw new ArgumentOutOfRangeException(nameof(cells), cell.ColumnSpan, "A cell spans at least one column.");
+            }
+
+            if (cell.FontSize is <= 0 or double.NaN)
+            {
+                throw new ArgumentOutOfRangeException(nameof(cells), cell.FontSize, "The font size of a cell must be positive.");
+            }
+
+            spanned += cell.ColumnSpan;
+        }
+
+        if (spanned != _columns.Length)
+        {
+            throw new ArgumentException($"The cells span {spanned} columns, but the table has {_columns.Length}.", nameof(cells));
+        }
+
+        return Add(row);
     }
 
     /// <summary>Height of the body row at <paramref name="index"/>, from its tallest wrapped cell plus the vertical padding.</summary>
@@ -99,10 +143,12 @@ public sealed class PdfTable
 
         var cursor = y;
         var separators = new List<double>();
+        var bands = new List<(double Top, double Bottom, PdfTableCell[] Cells)>();
         if (firstRow == 0 || _style.RepeatHeader)
         {
             cursor = DrawHeader(page, x, cursor);
             separators.Add(cursor);
+            bands.Add((y, cursor, _header));
         }
 
         var next = firstRow;
@@ -115,12 +161,13 @@ public sealed class PdfTable
             }
 
             DrawRow(page, next, x, cursor, height);
+            bands.Add((cursor, cursor + height, _rows[next]));
             cursor += height;
             separators.Add(cursor);
             next++;
         }
 
-        DrawGrid(page, x, y, cursor, separators);
+        DrawGrid(page, x, y, cursor, separators, bands);
         page.Restore().Font(previousFont, previousSize);
         return new PdfTableSlice(next, cursor, next == _rows.Count);
     }
@@ -133,8 +180,7 @@ public sealed class PdfTable
             page.Rect(x, y, Width, height).Fill(band);
         }
 
-        page.Font(_style.HeaderFont, _style.HeaderFontSize).FillColor(_style.HeaderTextColor);
-        DrawCells(page, _columns.Select(c => c.Header).ToArray(), x, y);
+        DrawCells(page, _header, x, y, height, _style.HeaderFont, _style.HeaderFontSize, _style.HeaderTextColor);
         return y + height;
     }
 
@@ -145,32 +191,54 @@ public sealed class PdfTable
             page.Rect(x, y, Width, height).Fill(band);
         }
 
-        page.Font(_style.Font, _style.FontSize).FillColor(_style.TextColor);
-        DrawCells(page, _rows[index], x, y);
+        DrawCells(page, _rows[index], x, y, height, _style.Font, _style.FontSize, _style.TextColor);
     }
 
-    private void DrawCells(PdfPage page, string[] cells, double x, double y)
+    /// <summary>Paints the cells' own backgrounds, then their text in the row's style or in their own.</summary>
+    private void DrawCells(PdfPage page, PdfTableCell[] cells, double x, double y, double height, PdfFont font, double size, PdfColor color)
     {
-        var cellX = x;
-        for (var i = 0; i < _columns.Length; i++)
+        foreach (var (cell, _, left, width) in Place(cells))
         {
-            var column = _columns[i];
-            if (cells[i].Length > 0)
+            if (cell.Background is { } background)
             {
-                page.Text(cells[i], cellX + _style.PaddingX, y + _style.PaddingY, new TextOptions
-                {
-                    Width = InnerWidth(column),
-                    Align = column.Align,
-                    LineGap = _style.LineGap,
-                });
+                page.Rect(x + left, y, width, height).Fill(background);
+            }
+        }
+
+        page.Font(font, size).FillColor(color);
+        foreach (var (cell, column, left, width) in Place(cells))
+        {
+            if (string.IsNullOrEmpty(cell.Text))
+            {
+                continue;
             }
 
-            cellX += column.Width;
+            page.Font(cell.Font ?? font, cell.FontSize ?? size);
+            if (cell.TextColor is { } own)
+            {
+                page.FillColor(own);
+            }
+
+            page.Text(cell.Text, x + left + _style.PaddingX, y + _style.PaddingY, new TextOptions
+            {
+                Width = InnerWidth(width),
+                Align = cell.Align ?? _columns[column].Align,
+                LineGap = _style.LineGap,
+            });
+
+            if (cell.TextColor is not null)
+            {
+                page.FillColor(color); // back to the row's colour for the cells that follow
+            }
         }
     }
 
-    /// <summary>Outer frame, one line under the header and under every row, one line between columns.</summary>
-    private void DrawGrid(PdfPage page, double x, double top, double bottom, List<double> separators)
+    /// <summary>
+    /// Outer frame, one line under the header and under every row, and one line between columns
+    /// wherever two cells meet: a spanning cell interrupts the lines it covers.
+    /// </summary>
+    private void DrawGrid(
+        PdfPage page, double x, double top, double bottom, List<double> separators, List<(double Top, double Bottom, PdfTableCell[] Cells)> bands)
     {
         if (_style.BorderColor is not { } color || _style.BorderWidth <= 0)
         {
@@ -183,27 +251,84 @@ public sealed class PdfTable
             page.MoveTo(x, separators[i]).LineTo(x + Width, separators[i]);
         }
 
+        var starts = bands.Select(band => Place(band.Cells).Select(placed => placed.Column).ToHashSet()).ToList();
         var edge = x;
-        for (var i = 0; i < _columns.Length - 1; i++)
+        for (var boundary = 1; boundary < _columns.Length; boundary++)
         {
-            edge += _columns[i].Width;
-            page.MoveTo(edge, top).LineTo(edge, bottom);
+            edge += _columns[boundary - 1].Width;
+
+            // One stroke per stretch of consecutive rows in which a cell starts at this boundary.
+            double? from = null;
+            var to = 0.0;
+            for (var i = 0; i < bands.Count; i++)
+            {
+                if (starts[i].Contains(boundary))
+                {
+                    from ??= bands[i].Top;
+                    to = bands[i].Bottom;
+                }
+                else if (from is { } open)
+                {
+                    page.MoveTo(edge, open).LineTo(edge, to);
+                    from = null;
+                }
+            }
+
+            if (from is { } last)
+            {
+                page.MoveTo(edge, last).LineTo(edge, to);
+            }
         }
 
         page.Stroke(color);
     }
 
-    private double RowHeightOf(string[] cells, PdfFont font, double size)
+    private PdfTable Add(PdfTableCell[] row)
     {
-        var lineHeight = font.LineHeight(size, includeGap: true) + _style.LineGap;
-        var lines = 1;
-        for (var i = 0; i < _columns.Length; i++)
+        var texts = Enumerable.Repeat(string.Empty, _columns.Length).ToArray();
+        foreach (var (cell, column, _, _) in Place(row))
         {
-            lines = Math.Max(lines, TextLayout.Wrap(cells[i], InnerWidth(_columns[i]), font, size).Count);
+            texts[column] = cell.Text ?? string.Empty;
         }
 
-        return lines * lineHeight + 2 * _style.PaddingY;
+        _rows.Add(row);
+        _rowTexts.Add(texts);
+        return this;
     }
 
-    private double InnerWidth(PdfTableColumn column) => Math.Max(0, column.Width - 2 * _style.PaddingX);
+    /// <summary>Where each cell of a row sits: the column it starts at, its left edge from the table's and its full width.</summary>
+    private IEnumerable<(PdfTableCell Cell, int Column, double Left, double Width)> Place(PdfTableCell[] cells)
+    {
+        var column = 0;
+        var left = 0.0;
+        foreach (var cell in cells)
+        {
+            var width = 0.0;
+            for (var i = column; i < column + cell.ColumnSpan; i++)
+            {
+                width += _columns[i].Width;
+            }
+
+            yield return (cell, column, left, width);
+            column += cell.ColumnSpan;
+            left += width;
+        }
+    }
+
+    /// <summary>Tallest cell of the row, each measured wrapped in its own font, plus the vertical padding.</summary>
+    private double RowHeightOf(PdfTableCell[] cells, PdfFont font, double size)
+    {
+        var tallest = 0.0;
+        foreach (var (cell, _, _, width) in Place(cells))
+        {
+            var cellFont = cell.Font ?? font;
+            var cellSize = cell.FontSize ?? size;
+            var lines = TextLayout.Wrap(cell.Text ?? string.Empty, InnerWidth(width), cellFont, cellSize).Count;
+            tallest = Math.Max(tallest, lines * (cellFont.LineHeight(cellSize, includeGap: true) + _style.LineGap));
+        }
+
+        return tallest + 2 * _style.PaddingY;
+    }
+
+    private double InnerWidth(double width) => Math.Max(0, width - 2 * _style.PaddingX);
 }

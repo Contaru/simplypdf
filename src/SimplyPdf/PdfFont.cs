@@ -108,7 +108,7 @@ public abstract class PdfFont
     /// <summary>
     /// Height <paramref name="text"/> takes when wrapped into <paramref name="width"/> points at
     /// <paramref name="size"/>: the number of lines times the line height (gap included) plus
-    /// <paramref name="lineGap"/> per line. The same measurement <see cref="PdfPage.HeightOfString"/> makes.
+    /// <paramref name="lineGap"/> per line. The same measurement <see cref="PdfPage.HeightOfString(string, TextOptions?)"/> makes.
     /// </summary>
     public double HeightOfString(string text, double size, double width, double lineGap = 0)
     {
@@ -152,6 +152,18 @@ public abstract class PdfFont
         var gap = includeGap ? LineGap : 0;
         return (Ascender + gap - Descender) * size / 1000.0;
     }
+
+    /// <summary>
+    /// Distance from the top of a line down to its baseline at <paramref name="size"/> points. A line
+    /// drawn with its top at <c>y</c> has its baseline at <c>y + Ascent(size)</c>.
+    /// </summary>
+    public double Ascent(double size) => Ascender * size / 1000.0;
+
+    /// <summary>
+    /// Distance from the baseline down to the bottom of a line at <paramref name="size"/> points, as a
+    /// positive number: <c>Ascent(size) + Descent(size)</c> is <see cref="LineHeight"/> without the gap.
+    /// </summary>
+    public double Descent(double size) => -Descender * size / 1000.0;
 
     /// <summary>Ascender in 1/1000 em.</summary>
     internal abstract double Ascender { get; }
