@@ -87,15 +87,15 @@ public sealed partial class PdfPage
         double? width, double? moduleSize, int quietZone, PdfColor? color)
     {
         ArgumentOutOfRangeException.ThrowIfNegative(quietZone);
-        RequireFinite(x, nameof(x));
-        RequireFinite(y, nameof(y));
+        RequireFiniteModulePosition(x, nameof(x));
+        RequireFiniteModulePosition(y, nameof(y));
         if (width is not null && moduleSize is not null)
         {
             throw new ArgumentException("Give the drawn width or the module size, not both.", nameof(moduleSize));
         }
 
-        RequirePositive(width, nameof(width));
-        RequirePositive(moduleSize, nameof(moduleSize));
+        RequirePositiveModuleSize(width, nameof(width));
+        RequirePositiveModuleSize(moduleSize, nameof(moduleSize));
 
         if (columns == 0 || rows == 0)
         {
@@ -178,7 +178,10 @@ public sealed partial class PdfPage
         return edges;
     }
 
-    private static void RequireFinite(double value, string name)
+    // PdfPage is one partial class across several files: private helpers carry "Module" in their
+    // name so that a generic one (RequireFinite…) cannot collide with another file's, which git
+    // would merge without a conflict and only the compiler would catch.
+    private static void RequireFiniteModulePosition(double value, string name)
     {
         if (!double.IsFinite(value))
         {
@@ -186,7 +189,7 @@ public sealed partial class PdfPage
         }
     }
 
-    private static void RequirePositive(double? value, string name)
+    private static void RequirePositiveModuleSize(double? value, string name)
     {
         if (value is { } v && !(v > 0 && double.IsFinite(v)))
         {
