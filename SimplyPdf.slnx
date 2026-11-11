@@ -1,5 +1,6 @@
 <Solution>
   <Folder Name="/samples/">
+    <Project Path="samples/A4Invoice/A4Invoice.csproj" />
     <Project Path="samples/DianInvoice/DianInvoice.csproj" />
     <Project Path="samples/PosInvoice/PosInvoice.csproj" />
     <Project Path="samples/PosReceipt/PosReceipt.csproj" />
