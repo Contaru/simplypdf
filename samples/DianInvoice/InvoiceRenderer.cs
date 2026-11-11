@@ -97,8 +97,8 @@ public static class InvoiceRenderer
     }
 
     /// <summary>
-    /// The DIAN QR payload, drawn as vector squares (1 pt per module, 4-module quiet zone) — the
-    /// same geometry the PNG at scale 0.25 had, but crisper and without an image decoder.
+    /// The DIAN QR payload, drawn as vector modules (1 pt each, 4-module quiet zone) — the same
+    /// geometry the PNG at scale 0.25 had, but crisper and without an image decoder.
     /// </summary>
     private static void DrawQrCode(PdfPage page, Invoice invoice, double x, double y)
     {
@@ -117,19 +117,7 @@ public static class InvoiceRenderer
             $"https://catalogo-vpfe.dian.gov.co/document/searchqr?documentkey={invoice.Cufe}");
 
         var qr = QrCode.EncodeText(payload, QrCode.Ecc.Medium);
-        const int quietZone = 4;
-        for (var row = 0; row < qr.Size; row++)
-        {
-            for (var col = 0; col < qr.Size; col++)
-            {
-                if (qr.GetModule(col, row))
-                {
-                    page.Rect(x + quietZone + col, y + quietZone + row, 1, 1);
-                }
-            }
-        }
-
-        page.Fill(PdfColor.Black);
+        page.Modules(qr.Size, qr.GetModule, x, y, quietZone: 4, color: PdfColor.Black);
     }
 
     private static void DrawDates(PdfPage page, Invoice invoice)

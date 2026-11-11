@@ -209,6 +209,7 @@ box of the rotated rectangle.
 | Tables | `PdfTable`: fixed column widths, wrapped cells, header band, grid, stripes, cells with their own font, colours, alignment and column span, drawn in slices that continue on the next page |
 | Encoding | Embedded fonts: any character the font has, as glyph ids with a `ToUnicode` map (text can be copied and searched). Standard fonts: WinAnsi, Latin-1 plus curly quotes, dashes, €, ™…; anything else becomes `?` |
 | Paths | Rectangles, rounded rectangles, ellipses, circles, polygons, Bézier curves, dashes, line width, clipping |
+| QR codes | `Modules` draws the matrix any generator produces (QR, Aztec, Data Matrix): dark runs merged into rectangles and filled once, quiet zone, sized by module or by drawn width |
 | Transforms | `Save` / `Restore`, `Translate`, `Scale`, `Rotate` around an origin |
 | Links | `Link`: a clickable rectangle that opens a URI (`https:`, `mailto:`, `tel:`…), placed in the same coordinates as the drawing |
 | Images | PNG (all colour types and bit depths, transparency, Adam7), JPEG (embedded as-is), raw RGB/grey pixels |
@@ -223,7 +224,16 @@ box of the rotated rectangle.
 - Kerning. Widths are plain advance widths (pdfkit applies AFM kern pairs; differences are fractions of a point).
 - Automatic page breaks for free text: text past the bottom of the page is simply off the page (tables paginate through `PdfTable.Draw`).
 - Encryption, forms, annotations other than links, bookmarks.
-- QR codes. Draw the module matrix from any generator as 1 pt squares — see `samples/DianInvoice`.
+- QR encoding, by design: the library draws a QR code, it does not compute one. Bring the module
+  matrix from any generator — a size and a `(column, row)` predicate, or a `bool[row, column]`
+  array — and `Modules` draws it as vector rectangles (see `samples/DianInvoice`):
+
+  ```csharp
+  var qr = QrCode.EncodeText(payload, QrCode.Ecc.Medium); // Net.Codecrete.QrCodeGenerator, or any other
+
+  page.Modules(qr.Size, qr.GetModule, x: 375, y: 25, quietZone: 4);            // 1 pt per module
+  page.Modules(qr.Size, qr.GetModule, x: 375, y: 25, width: 90, quietZone: 4); // or fitted to a 90 pt box
+  ```
 
 ## Repository layout
 
