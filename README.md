@@ -128,6 +128,20 @@ loop always advances. `PdfTableStyle` sets fonts, colours, padding, stripes and 
 header repeats. For single-line cells that must not wrap, `font.Fit(text, size, maxWidth)` (or
 `page.FitString`) trims the text to the width with an ellipsis.
 
+## Attachments
+
+A document can carry other files, which viewers list in their attachments panel: the XML of an
+electronic invoice next to its printed page, for instance.
+
+```csharp
+doc.Attach("factura.xml", xmlBytes, "application/xml",
+    description: "Factura electrónica (UBL 2.1)",
+    relationship: PdfAttachmentRelationship.Alternative);
+```
+
+The relationship tells archiving and e-invoicing readers what the file is to the document. This
+is the attachment alone: the output is not PDF/A.
+
 ## Coordinate model
 
 The origin is the **top-left** corner and y grows downwards, exactly like pdfkit. Units are PDF
@@ -162,6 +176,7 @@ pending path only sets the fill colour, which is also the text colour.
 | Paths | Rectangles, rounded rectangles, ellipses, circles, polygons, Bézier curves, dashes, line width, clipping |
 | Transforms | `Save` / `Restore`, `Translate`, `Scale`, `Rotate` around an origin |
 | Images | PNG (all colour types and bit depths, transparency, Adam7), JPEG (embedded as-is), raw RGB/grey pixels |
+| Attachments | Files carried inside the PDF with `doc.Attach`: name, MIME type, description and relationship to the document |
 | Output | PDF 1.4, Flate-compressed streams, `/Info` metadata, culture-invariant everywhere |
 
 ## What it does not do
