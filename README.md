@@ -180,6 +180,25 @@ Drawing follows the PDF model: path calls (`Rect`, `MoveTo`, `LineTo`, `Circle`�
 and the next `Fill` / `Stroke` / `FillAndStroke` / `Clip` consumes them. `Fill(color)` with no
 pending path only sets the fill colour, which is also the text colour.
 
+## Links
+
+`Link(x, y, width, height, uri)` makes a rectangle of the page clickable. It draws nothing, so
+put it over whatever should be clicked — here a line of text, measured with the current font:
+
+```csharp
+const string url = "https://contaru.com/facturas/FE0177192";
+
+page.Font(StandardFont.Helvetica, 9).Fill("#0b57d0")
+    .Text(url, 40, 700)
+    .Link(40, 700, page.WidthOfString(url), page.CurrentLineHeight(), url)
+    .Link(40, 45, 160, 48, "mailto:facturacion@contaru.com");   // over the logo
+```
+
+The URI must be absolute (`https://…`, `mailto:…`, `tel:…`; a bare `www.example.com` is rejected).
+Spaces and non-ASCII characters are percent-encoded. The rectangle follows `Translate` / `Scale` /
+`Rotate`, so it lands where the drawing does; under a rotation the clickable area is the bounding
+box of the rotated rectangle.
+
 ## What it does
 
 | Area | Support |
@@ -191,6 +210,7 @@ pending path only sets the fill colour, which is also the text colour.
 | Encoding | Embedded fonts: any character the font has, as glyph ids with a `ToUnicode` map (text can be copied and searched). Standard fonts: WinAnsi, Latin-1 plus curly quotes, dashes, €, ™…; anything else becomes `?` |
 | Paths | Rectangles, rounded rectangles, ellipses, circles, polygons, Bézier curves, dashes, line width, clipping |
 | Transforms | `Save` / `Restore`, `Translate`, `Scale`, `Rotate` around an origin |
+| Links | `Link`: a clickable rectangle that opens a URI (`https:`, `mailto:`, `tel:`…), placed in the same coordinates as the drawing |
 | Images | PNG (all colour types and bit depths, transparency, Adam7), JPEG (embedded as-is), raw RGB/grey pixels |
 | Attachments | Files carried inside the PDF with `doc.Attach`: name, MIME type, description and relationship to the document |
 | Output | PDF 1.4, or PDF/A-3b (PDF 1.7) on request; Flate-compressed streams, `/Info` metadata, culture-invariant everywhere |
@@ -202,7 +222,7 @@ pending path only sets the fill colour, which is also the text colour.
   font that has the glyphs, but lines only break at spaces.
 - Kerning. Widths are plain advance widths (pdfkit applies AFM kern pairs; differences are fractions of a point).
 - Automatic page breaks for free text: text past the bottom of the page is simply off the page (tables paginate through `PdfTable.Draw`).
-- Encryption, forms, annotations, links, bookmarks.
+- Encryption, forms, annotations other than links, bookmarks.
 - QR codes. Draw the module matrix from any generator as 1 pt squares — see `samples/DianInvoice`.
 
 ## Repository layout
