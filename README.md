@@ -52,6 +52,23 @@ outlines (every Google Fonts download qualifies).
 Only embed fonts whose licence allows it. SIL OFL fonts do; most "free for personal use" fonts
 and many freeware desktop EULAs (Typodermic's, for instance) do not cover servers or software.
 
+## Mixed styles in a paragraph
+
+A `TextRun` is a stretch of text with its own font, size and colour; whatever it leaves out comes
+from the page, and a plain string is a run in the current style. Several runs passed to `Text`
+make **one** paragraph that wraps and aligns as a whole, so a line can break inside any of them:
+
+```csharp
+var bold = PdfFont.HelveticaBold;
+
+page.Font(PdfFont.Helvetica, 9)
+    .Text([new TextRun("Observaciones: ", bold), invoice.Note], 30, 640, new TextOptions { Width = 350 })
+    .Text([new TextRun("ANULADA", bold, Color: "#c00000"), " el 3 de noviembre de 2026"], 30, 700);
+```
+
+Runs of different sizes sit on a common baseline and each line is as tall as its tallest run.
+The page's own font, size and colour are left as they were.
+
 ## Tables
 
 `PdfTable` (namespace `SimplyPdf.Layout`) is a grid of text cells with fixed column widths. Row
@@ -83,6 +100,21 @@ while (!slice.IsComplete)
 // slice.Bottom is where the totals go
 ```
 
+A cell is a plain string in the table's style, or a `PdfTableCell` where one needs its own font,
+size, colours, alignment or column span, which is all a totals row takes. It is a row like
+any other, so it paginates with the rest:
+
+```csharp
+var bold = PdfFont.HelveticaBold;
+
+table.AddRow(
+    new PdfTableCell("Total a Pagar") { ColumnSpan = 3, Align = TextAlign.Right, Font = bold },
+    new PdfTableCell(invoice.Total) { Font = bold, Background = "#e3e3e3" });
+```
+
+The grid draws no line across a spanning cell. A column can also centre its caption over
+right-aligned amounts: `new PdfTableColumn("Vr. Total", 90, TextAlign.Right) { HeaderAlign = TextAlign.Center }`.
+
 Every call draws at least the header and one row, even if that row overflows `maxY`, so the
 loop always advances. `PdfTableStyle` sets fonts, colours, padding, stripes and whether the
 header repeats. For single-line cells that must not wrap, `font.Fit(text, size, maxWidth)` (or
@@ -94,6 +126,17 @@ The origin is the **top-left** corner and y grows downwards, exactly like pdfkit
 points (1/72 in). `Text(x, y)` places the *top* of the line at `y`; the baseline sits at
 `y + ascender × size / 1000`, and the cursor advances by `(ascender − descender + lineGap) × size / 1000`,
 so layouts written for pdfkit port one to one.
+
+Positions taken from CSS, SVG or a design tool are baselines instead. `TextOptions.Baseline`
+says what `y` refers to (`Top` by default, `Alphabetic`, `Middle` or `Bottom`), and the cursor
+keeps that reference, so consecutive calls flow from baseline to baseline:
+
+```csharp
+page.Text("Total a Pagar", 400, 558.6, new TextOptions { Baseline = TextBaseline.Alphabetic });
+```
+
+`font.Ascent(size)` and `font.Descent(size)` give the distances from the baseline to the top
+and to the bottom of a line, for boxes that have to hug the text.
 
 Drawing follows the PDF model: path calls (`Rect`, `MoveTo`, `LineTo`, `Circle`…) accumulate,
 and the next `Fill` / `Stroke` / `FillAndStroke` / `Clip` consumes them. `Fill(color)` with no
@@ -124,8 +167,8 @@ box of the rotated rectangle.
 | --- | --- |
 | Pages | Any size (`PdfPageSize.Letter`, `A4`, `.Landscape`, custom), any number of pages |
 | Fonts | Helvetica, Times, Courier families (12 faces) with AFM metrics; TrueType `.ttf` embedded and subsetted |
-| Text | Word wrap, left / centre / right / justify, line gap, `WidthOfString`, `HeightOfString`, `Fit` with ellipsis, cursor flow |
-| Tables | `PdfTable`: fixed column widths, wrapped cells, header band, grid, stripes, drawn in slices that continue on the next page |
+| Text | Word wrap, left / centre / right / justify, line gap, `WidthOfString`, `HeightOfString`, `Fit` with ellipsis, cursor flow, runs of different fonts, sizes and colours in one paragraph (`TextRun`), placement by top, middle, baseline or bottom |
+| Tables | `PdfTable`: fixed column widths, wrapped cells, header band, grid, stripes, cells with their own font, colours, alignment and column span, drawn in slices that continue on the next page |
 | Encoding | WinAnsi: Latin-1 plus curly quotes, dashes, €, ™… Unsupported characters become `?` |
 | Paths | Rectangles, rounded rectangles, ellipses, circles, polygons, Bézier curves, dashes, line width, clipping |
 | Transforms | `Save` / `Restore`, `Translate`, `Scale`, `Rotate` around an origin |

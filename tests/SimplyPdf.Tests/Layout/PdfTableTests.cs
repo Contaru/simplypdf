@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Text.RegularExpressions;
 using SimplyPdf.Layout;
 
 namespace SimplyPdf.Tests.Layout;
@@ -151,4 +152,129 @@ public sealed class PdfTableTests
         Assert.Throws<ArgumentException>(() => table.AddRow("only", "three", "cells"));
         Assert.Throws<ArgumentException>(() => new PdfTable([]));
     }
+
+    [Fact]
+    public void A_cell_draws_in_its_own_font_and_colour_and_the_row_style_comes_back()
+    {
+        var table = new PdfTable(Columns)
+            .AddRow("1", new PdfTableCell("Bold one") { Font = PdfFont.HelveticaBold, TextColor = "#ff0000" }, "2", "3");
+        var (document, page) = Letter();
+
+        table.Draw(page, 30, 100, 700);
+
+        // F1 is the header's Helvetica-Bold, F2 the body's Helvetica.
+        var content = new PdfProbe(document.ToArray()).FirstPageContent();
+        Assert.Contains("1 0 0 rg\nq\n1 0 0 -1 0 792 cm\nBT\n/F1 8 Tf\n", content, StringComparison.Ordinal);
+        Assert.Contains("(Bold one) Tj\nET\nQ\n0 0 0 rg\n", content, StringComparison.Ordinal);
+        Assert.Matches(@"/F2 8 Tf\n1 0 0 1 [\d.]+ [\d.]+ Tm\n\(2\) Tj", content);
+    }
+
+    [Fact]
+    public void A_cell_background_fills_its_own_box()
+    {
+        var table = new PdfTable(Columns).AddRow("1", new PdfTableCell("Marked") { Background = "#ffff00" }, "2", "3");
+        var (document, page) = Letter();
+
+        table.Draw(page, 30, 100, 700);
+
+        // The second column runs from x = 60 for 200 pt; the row sits right under the header.
+        var box = $"60 {N(100 + table.HeaderHeight)} 200 {N(table.RowHeight(0))} re\n1 1 0 rg\nf\n";
+        Assert.Contains(box, new PdfProbe(document.ToArray()).FirstPageContent(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_cell_can_align_against_its_column()
+    {
+        var table = new PdfTable(Columns).AddRow("1", new PdfTableCell("R") { Align = TextAlign.Right }, "2", "3");
+        var (document, page) = Letter();
+
+        table.Draw(page, 30, 100, 700);
+
+        // Flush with the right padding of the Description column, which ends at x = 260.
+        var x = 260 - 3 - PdfFont.Helvetica.WidthOfString("R", 8);
+        var baseline = 792 - (100 + table.HeaderHeight + 2) - PdfFont.Helvetica.Ascent(8);
+        Assert.Contains($"1 0 0 1 {N(x)} {N(baseline)} Tm\n(R) Tj", new PdfProbe(document.ToArray()).FirstPageContent(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void A_spanning_cell_takes_the_width_of_its_columns_and_interrupts_the_grid()
+    {
+        var table = Sample(2).AddRow(new PdfTableCell("Total") { ColumnSpan = 3, Align = TextAlign.Right }, "2,000.00");
+        var (document, page) = Letter();
+
+        var slice = table.Draw(page, 30, 100, 700);
+
+        Assert.Equal(["Total", "", "", "2,000.00"], table.Rows[2]);
+        var content = new PdfProbe(document.ToArray()).FirstPageContent();
+
+        // "Total" ends at the right padding of the third column (x = 300), not of the first.
+        var x = 300 - 3 - PdfFont.Helvetica.WidthOfString("Total", 8);
+        Assert.Contains($"1 0 0 1 {N(x)} ", content, StringComparison.Ordinal);
+
+        // The rules inside the span stop above it; the one at its right edge runs to the bottom.
+        var spanTop = N(slice.Bottom - table.RowHeight(2));
+        Assert.Contains($"60 100 m\n60 {spanTop} l\n", content, StringComparison.Ordinal);
+        Assert.Contains($"260 100 m\n260 {spanTop} l\n", content, StringComparison.Ordinal);
+        Assert.Contains($"300 100 m\n300 {N(slice.Bottom)} l\n", content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void The_grid_resumes_below_a_spanning_cell()
+    {
+        var table = Sample(1).AddRow(new PdfTableCell("Section") { ColumnSpan = 2 }, "", "").AddRow("2", "Product 2", "1", "1,000.00");
+        var (document, page) = Letter();
+
+        var slice = table.Draw(page, 30, 100, 700);
+
+        var content = new PdfProbe(document.ToArray()).FirstPageContent();
+        var spanTop = 100 + table.HeaderHeight + table.RowHeight(0);
+        var spanBottom = spanTop + table.RowHeight(1);
+        Assert.Contains($"60 100 m\n60 {N(spanTop)} l\n60 {N(spanBottom)} m\n60 {N(slice.Bottom)} l\n", content, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Row_height_follows_each_cells_own_size_and_span()
+    {
+        var wide = string.Join(' ', Enumerable.Repeat("wrap", 40));
+        var table = new PdfTable(Columns)
+            .AddRow("1", new PdfTableCell("Big") { FontSize = 16 }, "", "")
+            .AddRow("2", wide, "", "")
+            .AddRow("3", new PdfTableCell(wide) { ColumnSpan = 3 });
+
+        Assert.Equal(PdfFont.Helvetica.LineHeight(16, includeGap: true) + 4, table.RowHeight(0), 6);
+        Assert.True(table.RowHeight(2) < table.RowHeight(1)); // 320 pt of room wrap into fewer lines than 200
+    }
+
+    [Fact]
+    public void A_caption_can_align_differently_from_its_column()
+    {
+        var table = new PdfTable([new PdfTableColumn("Total", 80, TextAlign.Right) { HeaderAlign = TextAlign.Center }]).AddRow("1.00");
+        var (document, page) = Letter();
+
+        table.Draw(page, 30, 100, 700);
+
+        var content = new PdfProbe(document.ToArray()).FirstPageContent();
+        var caption = 30 + 3 + (74 - PdfFont.HelveticaBold.WidthOfString("Total", 8)) / 2;
+        var amount = 30 + 80 - 3 - PdfFont.Helvetica.WidthOfString("1.00", 8);
+        Assert.Matches($@"1 0 0 1 {Regex.Escape(N(caption))} [\d.]+ Tm\n\(Total\) Tj", content);
+        Assert.Matches($@"1 0 0 1 {Regex.Escape(N(amount))} [\d.]+ Tm\n\(1\.00\) Tj", content);
+    }
+
+    [Fact]
+    public void AddRow_checks_spans_and_sizes_and_keeps_plain_rows_on_the_string_overload()
+    {
+        var table = new PdfTable(Columns);
+
+        Assert.Throws<ArgumentException>(() => table.AddRow(new PdfTableCell("a") { ColumnSpan = 2 }, "b", "c", "d"));
+        Assert.Throws<ArgumentOutOfRangeException>(() => table.AddRow(new PdfTableCell("a") { ColumnSpan = 0 }, "b", "c", "d"));
+        Assert.Throws<ArgumentOutOfRangeException>(() => table.AddRow(new PdfTableCell("a") { FontSize = 0 }, "b", "c", "d"));
+
+        table.AddRow(null, null, null, null).AddRow(null, new PdfTableCell("x"), null, null);
+        Assert.Equal(["", "", "", ""], table.Rows[0]);
+        Assert.Equal(["", "x", "", ""], table.Rows[1]);
+    }
+
+    /// <summary>A number as the library writes it into a content stream.</summary>
+    private static string N(double value) =>
+        Math.Round(value, 3, MidpointRounding.AwayFromZero).ToString("0.###", CultureInfo.InvariantCulture);
 }

@@ -19,6 +19,12 @@ public sealed class PdfTableColumn
     /// <summary>Column width in points, borders included.</summary>
     public double Width { get; }
 
-    /// <summary>Horizontal alignment of the cells (the header follows it too).</summary>
+    /// <summary>Horizontal alignment of the cells (the header follows it too, unless <see cref="HeaderAlign"/> says otherwise).</summary>
     public TextAlign Align { get; }
+
+    /// <summary>
+    /// Horizontal alignment of the caption alone, or <see langword="null"/> to follow <see cref="Align"/>:
+    /// a centred caption over right-aligned amounts, for instance.
+    /// </summary>
+    public TextAlign? HeaderAlign { get; init; }
 }
