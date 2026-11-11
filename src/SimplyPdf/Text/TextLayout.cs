@@ -1,25 +1,24 @@
 using System.Runtime.InteropServices;
-using SimplyPdf.Fonts;
 
 namespace SimplyPdf.Text;
 
-/// <summary>Greedy word wrapping over WinAnsi-encoded text.</summary>
+/// <summary>Greedy word wrapping over text already turned into a font's codes.</summary>
 internal static class TextLayout
 {
     /// <summary>One laid-out line. <paramref name="EndsParagraph"/> is false when the line was produced by wrapping.</summary>
-    public readonly record struct Line(byte[] Bytes, bool EndsParagraph);
+    public readonly record struct Line(TextCode[] Codes, bool EndsParagraph);
 
     /// <summary>A <see cref="TextRun"/> whose font and size are settled; a null colour means the current fill colour.</summary>
     public readonly record struct StyledRun(string Text, PdfFont Font, double Size, PdfColor? Color);
 
     /// <summary>The part of a line drawn in one style.</summary>
-    public readonly record struct Segment(byte[] Bytes, PdfFont Font, double Size, PdfColor? Color)
+    public readonly record struct Segment(TextCode[] Codes, PdfFont Font, double Size, PdfColor? Color)
     {
         /// <summary>Advance width in points.</summary>
-        public double Width => Font.WidthOf(Bytes, Size);
+        public double Width => Font.WidthOf(Codes, Size);
 
         /// <summary>Number of spaces, which is what justification stretches.</summary>
-        public int Spaces => Bytes.Count(b => b == (byte)' ');
+        public int Spaces => Codes.Count(code => code.IsSpace);
     }
 
     /// <summary>
@@ -47,22 +46,22 @@ internal static class TextLayout
 
         foreach (var paragraph in Normalise(text).Split('\n'))
         {
-            var bytes = WinAnsiEncoding.Encode(paragraph);
-            if (!Wraps(maxWidth) || font.WidthOf(bytes, size) <= maxWidth)
+            var codes = font.Encode(paragraph);
+            if (!Wraps(maxWidth) || font.WidthOf(codes, size) <= maxWidth)
             {
-                lines.Add(new Line(bytes, EndsParagraph: true));
+                lines.Add(new Line(codes, EndsParagraph: true));
                 continue;
             }
 
-            var advances = new double[bytes.Length];
-            for (var i = 0; i < bytes.Length; i++)
+            var advances = new double[codes.Length];
+            for (var i = 0; i < codes.Length; i++)
             {
-                advances[i] = font.WidthOfCode(bytes[i]) * size / 1000.0;
+                advances[i] = font.WidthOfCode(codes[i].Value) * size / 1000.0;
             }
 
-            foreach (var (start, end, endsParagraph) in BreakParagraph(bytes, advances, maxWidth))
+            foreach (var (start, end, endsParagraph) in BreakParagraph(codes, advances, maxWidth))
             {
-                lines.Add(new Line(bytes[start..end], endsParagraph));
+                lines.Add(new Line(codes[start..end], endsParagraph));
             }
         }
 
@@ -83,7 +82,7 @@ internal static class TextLayout
         }
 
         // The paragraph being gathered: its codes, and for each code the run it came from.
-        var codes = new List<byte>();
+        var codes = new List<TextCode>();
         var owners = new List<int>();
 
         for (var run = 0; run < runs.Count; run++)
@@ -98,7 +97,7 @@ internal static class TextLayout
                     owners.Clear();
                 }
 
-                foreach (var code in WinAnsiEncoding.Encode(paragraphs[p]))
+                foreach (var code in runs[run].Font.Encode(paragraphs[p]))
                 {
                     codes.Add(code);
                     owners.Add(run);
@@ -111,24 +110,24 @@ internal static class TextLayout
     }
 
     private static void WrapParagraph(
-        IReadOnlyList<StyledRun> runs, List<byte> codes, List<int> owners, int emptyLineRun, double maxWidth, List<StyledLine> lines)
+        IReadOnlyList<StyledRun> runs, List<TextCode> codes, List<int> owners, int emptyLineRun, double maxWidth, List<StyledLine> lines)
     {
-        var bytes = CollectionsMarshal.AsSpan(codes);
-        var whole = Slice(runs, codes, owners, 0, bytes.Length, emptyLineRun, endsParagraph: true);
+        var all = CollectionsMarshal.AsSpan(codes);
+        var whole = Slice(runs, codes, owners, 0, all.Length, emptyLineRun, endsParagraph: true);
         if (!Wraps(maxWidth) || whole.Width <= maxWidth)
         {
             lines.Add(whole);
             return;
         }
 
-        var advances = new double[bytes.Length];
-        for (var i = 0; i < bytes.Length; i++)
+        var advances = new double[all.Length];
+        for (var i = 0; i < all.Length; i++)
         {
             var run = runs[owners[i]];
-            advances[i] = run.Font.WidthOfCode(bytes[i]) * run.Size / 1000.0;
+            advances[i] = run.Font.WidthOfCode(all[i].Value) * run.Size / 1000.0;
         }
 
-        foreach (var (start, end, endsParagraph) in BreakParagraph(bytes, advances, maxWidth))
+        foreach (var (start, end, endsParagraph) in BreakParagraph(all, advances, maxWidth))
         {
             lines.Add(Slice(runs, codes, owners, start, end, emptyLineRun, endsParagraph));
         }
@@ -136,7 +135,7 @@ internal static class TextLayout
 
     /// <summary>Cuts the codes in [start, end) into one segment per stretch that belongs to the same run.</summary>
     private static StyledLine Slice(
-        IReadOnlyList<StyledRun> runs, List<byte> codes, List<int> owners, int start, int end, int emptyLineRun, bool endsParagraph)
+        IReadOnlyList<StyledRun> runs, List<TextCode> codes, List<int> owners, int start, int end, int emptyLineRun, bool endsParagraph)
     {
         var segments = new List<Segment>();
         var ascent = 0.0;
@@ -178,16 +177,16 @@ internal static class TextLayout
     /// <paramref name="maxWidth"/>, given the advance of every code. The spaces at a break belong to
     /// neither line.
     /// </summary>
-    private static List<(int Start, int End, bool EndsParagraph)> BreakParagraph(ReadOnlySpan<byte> bytes, ReadOnlySpan<double> advances, double maxWidth)
+    private static List<(int Start, int End, bool EndsParagraph)> BreakParagraph(ReadOnlySpan<TextCode> codes, ReadOnlySpan<double> advances, double maxWidth)
     {
         var ranges = new List<(int Start, int End, bool EndsParagraph)>();
         var start = 0;
-        while (start < bytes.Length)
+        while (start < codes.Length)
         {
             var lineWidth = 0.0;
             var lastSpace = -1;
             var i = start;
-            while (i < bytes.Length)
+            while (i < codes.Length)
             {
                 var advance = advances[i];
                 if (lineWidth + advance > maxWidth && i > start)
@@ -196,7 +195,7 @@ internal static class TextLayout
                 }
 
                 lineWidth += advance;
-                if (bytes[i] == (byte)' ')
+                if (codes[i].IsSpace)
                 {
                     lastSpace = i;
                 }
@@ -205,9 +204,9 @@ internal static class TextLayout
             }
 
             int end;
-            if (i >= bytes.Length)
+            if (i >= codes.Length)
             {
-                end = bytes.Length; // the remainder fits
+                end = codes.Length; // the remainder fits
             }
             else if (lastSpace >= start)
             {
@@ -220,19 +219,19 @@ internal static class TextLayout
             }
 
             var trimmedEnd = end;
-            while (trimmedEnd > start && bytes[trimmedEnd - 1] == (byte)' ')
+            while (trimmedEnd > start && codes[trimmedEnd - 1].IsSpace)
             {
                 trimmedEnd--;
             }
 
             // Leading spaces do not carry over to the next line.
             var next = i;
-            while (next < bytes.Length && bytes[next] == (byte)' ')
+            while (next < codes.Length && codes[next].IsSpace)
             {
                 next++;
             }
 
-            ranges.Add((start, trimmedEnd, next >= bytes.Length));
+            ranges.Add((start, trimmedEnd, next >= codes.Length));
             start = next;
         }
 

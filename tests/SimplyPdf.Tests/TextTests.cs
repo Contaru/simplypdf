@@ -122,9 +122,9 @@ public class TextTests
         var font = PdfFont.Helvetica;
         var lines = TextLayout.Wrap("the quick brown fox jumps over the lazy dog", 60, font, 10);
 
-        Assert.All(lines, l => Assert.True(font.WidthOf(l.Bytes, 10) <= 60));
-        Assert.Equal("the quick", Latin1(lines[0].Bytes));
-        Assert.Equal("brown fox", Latin1(lines[1].Bytes));
+        Assert.All(lines, l => Assert.True(font.WidthOf(l.Codes, 10) <= 60));
+        Assert.Equal("the quick", Latin1(lines[0].Codes));
+        Assert.Equal("brown fox", Latin1(lines[1].Codes));
         Assert.True(lines[^1].EndsParagraph);
         Assert.All(lines.SkipLast(1), l => Assert.False(l.EndsParagraph));
     }
@@ -136,8 +136,8 @@ public class TextTests
         var lines = TextLayout.Wrap("abcdefghijklmnopqrstuvwxyz", 30, font, 10);
 
         Assert.True(lines.Count > 1);
-        Assert.Equal("abcdefghijklmnopqrstuvwxyz", string.Concat(lines.Select(l => Latin1(l.Bytes))));
-        Assert.All(lines, l => Assert.True(font.WidthOf(l.Bytes, 10) <= 30));
+        Assert.Equal("abcdefghijklmnopqrstuvwxyz", string.Concat(lines.Select(l => Latin1(l.Codes))));
+        Assert.All(lines, l => Assert.True(font.WidthOf(l.Codes, 10) <= 30));
     }
 
     [Fact]
@@ -146,7 +146,7 @@ public class TextTests
         var font = PdfFont.Helvetica;
 
         var lines = TextLayout.Wrap("a\r\nb\nc", double.PositiveInfinity, font, 10);
-        Assert.Equal(new[] { "a", "b", "c" }, lines.Select(l => Latin1(l.Bytes)));
+        Assert.Equal(new[] { "a", "b", "c" }, lines.Select(l => Latin1(l.Codes)));
 
         Assert.Single(TextLayout.Wrap(string.Empty, 100, font, 10));
     }
@@ -206,5 +206,6 @@ public class TextTests
         Assert.Equal(4 * 11.56, wrapped, 3); // "the quick" / "brown fox" / "jumps over" / "the lazy dog"
     }
 
-    private static string Latin1(byte[] bytes) => System.Text.Encoding.Latin1.GetString(bytes);
+    /// <summary>The text behind the codes of a standard font, which are WinAnsi bytes.</summary>
+    private static string Latin1(TextCode[] codes) => string.Concat(codes.Select(code => (char)code.Value));
 }
