@@ -108,7 +108,7 @@ public abstract class PdfFont
     /// <summary>
     /// Height <paramref name="text"/> takes when wrapped into <paramref name="width"/> points at
     /// <paramref name="size"/>: the number of lines times the line height (gap included) plus
-    /// <paramref name="lineGap"/> per line. The same measurement <see cref="PdfPage.HeightOfString"/> makes.
+    /// <paramref name="lineGap"/> per line. The same measurement <see cref="PdfPage.HeightOfString(string, TextOptions?)"/> makes.
     /// </summary>
     public double HeightOfString(string text, double size, double width, double lineGap = 0)
     {
