@@ -100,6 +100,21 @@ while (!slice.IsComplete)
 // slice.Bottom is where the totals go
 ```
 
+A cell is a plain string in the table's style, or a `PdfTableCell` where one needs its own font,
+size, colours, alignment or column span, which is all a totals row takes. It is a row like
+any other, so it paginates with the rest:
+
+```csharp
+var bold = PdfFont.HelveticaBold;
+
+table.AddRow(
+    new PdfTableCell("Total a Pagar") { ColumnSpan = 3, Align = TextAlign.Right, Font = bold },
+    new PdfTableCell(invoice.Total) { Font = bold, Background = "#e3e3e3" });
+```
+
+The grid draws no line across a spanning cell. A column can also centre its caption over
+right-aligned amounts: `new PdfTableColumn("Vr. Total", 90, TextAlign.Right) { HeaderAlign = TextAlign.Center }`.
+
 Every call draws at least the header and one row, even if that row overflows `maxY`, so the
 loop always advances. `PdfTableStyle` sets fonts, colours, padding, stripes and whether the
 header repeats. For single-line cells that must not wrap, `font.Fit(text, size, maxWidth)` (or
@@ -134,7 +149,7 @@ pending path only sets the fill colour, which is also the text colour.
 | Pages | Any size (`PdfPageSize.Letter`, `A4`, `.Landscape`, custom), any number of pages |
 | Fonts | Helvetica, Times, Courier families (12 faces) with AFM metrics; TrueType `.ttf` embedded and subsetted |
 | Text | Word wrap, left / centre / right / justify, line gap, `WidthOfString`, `HeightOfString`, `Fit` with ellipsis, cursor flow, runs of different fonts, sizes and colours in one paragraph (`TextRun`), placement by top, middle, baseline or bottom |
-| Tables | `PdfTable`: fixed column widths, wrapped cells, header band, grid, stripes, drawn in slices that continue on the next page |
+| Tables | `PdfTable`: fixed column widths, wrapped cells, header band, grid, stripes, cells with their own font, colours, alignment and column span, drawn in slices that continue on the next page |
 | Encoding | WinAnsi: Latin-1 plus curly quotes, dashes, €, ™… Unsupported characters become `?` |
 | Paths | Rectangles, rounded rectangles, ellipses, circles, polygons, Bézier curves, dashes, line width, clipping |
 | Transforms | `Save` / `Restore`, `Translate`, `Scale`, `Rotate` around an origin |
