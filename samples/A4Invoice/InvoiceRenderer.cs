@@ -358,11 +358,11 @@ public static class InvoiceRenderer
                 Width = right - left,
                 Align = TextAlign.Center,
                 Baseline = TextBaseline.Alphabetic,
-                LineGap = pitch - face.Regular.LineHeight(size, includeGap: true), // the stylesheet's line pitch
+                LineHeight = pitch,
             };
 
             page.FillColor(Color).Font(face.Regular, size).Text(runs, left, baseline, options);
-            return baseline + Math.Round((page.Y - baseline) / pitch) * pitch;
+            return page.Y; // placed by baseline, the cursor is the next baseline
         }
 
         private PdfFont Font(bool bold) => bold ? face.Bold : face.Regular;
