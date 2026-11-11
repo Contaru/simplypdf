@@ -104,6 +104,11 @@ internal sealed class TrueTypePdfFont : PdfFont
         content.Append("] TJ\n");
     }
 
+    internal override string? ArchivalProblem(IReadOnlySet<ushort> usedCodes) =>
+        usedCodes.Contains(0)
+            ? $"the font {Name} was asked to draw a character it has no glyph for"
+            : null;
+
     internal override PdfObjectRef WriteTo(PdfWriter writer, IReadOnlySet<ushort> usedCodes)
     {
         var glyphs = usedCodes.Order().ToArray();

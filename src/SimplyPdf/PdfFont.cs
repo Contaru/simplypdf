@@ -200,6 +200,9 @@ public abstract class PdfFont
     /// <summary>Writes the font dictionary (and whatever it references) and returns its reference.</summary>
     internal abstract PdfObjectRef WriteTo(PdfWriter writer, IReadOnlySet<ushort> usedCodes);
 
+    /// <summary>Why this font, having drawn these codes, cannot go into a PDF/A file; null when it can.</summary>
+    internal abstract string? ArchivalProblem(IReadOnlySet<ushort> usedCodes);
+
     internal double WidthOf(ReadOnlySpan<TextCode> codes, double size)
     {
         var units = 0.0;

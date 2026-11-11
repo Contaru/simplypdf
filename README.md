@@ -139,8 +139,24 @@ doc.Attach("factura.xml", xmlBytes, "application/xml",
     relationship: PdfAttachmentRelationship.Alternative);
 ```
 
-The relationship tells archiving and e-invoicing readers what the file is to the document. This
-is the attachment alone: the output is not PDF/A.
+The relationship tells archiving and e-invoicing readers what the file is to the document.
+Attaching a file does not by itself make the document PDF/A; that is the next section.
+
+## PDF/A-3
+
+Set `Conformance` and the document is written as PDF/A-3b, the archival flavour that may carry
+attachments. It gains XMP metadata, an sRGB output intent and a file identifier:
+
+```csharp
+var doc = new PdfDocument { Conformance = PdfConformance.PdfA3B };
+```
+
+The standard forbids a few things, and `Save` refuses them with the reason instead of writing a
+file that only claims to conform: the standard 14 fonts (they are never embedded, so every font
+has to come from `PdfFont.FromFile`), a character its font has no glyph for, and CMYK JPEGs.
+
+Documents made this way pass the PDF/A-3b profile of [veraPDF](https://verapdf.org). Validate
+your own before relying on it: a validator is the only real test of conformance.
 
 ## Coordinate model
 
@@ -177,7 +193,7 @@ pending path only sets the fill colour, which is also the text colour.
 | Transforms | `Save` / `Restore`, `Translate`, `Scale`, `Rotate` around an origin |
 | Images | PNG (all colour types and bit depths, transparency, Adam7), JPEG (embedded as-is), raw RGB/grey pixels |
 | Attachments | Files carried inside the PDF with `doc.Attach`: name, MIME type, description and relationship to the document |
-| Output | PDF 1.4, Flate-compressed streams, `/Info` metadata, culture-invariant everywhere |
+| Output | PDF 1.4, or PDF/A-3b (PDF 1.7) on request; Flate-compressed streams, `/Info` metadata, culture-invariant everywhere |
 
 ## What it does not do
 
@@ -186,7 +202,7 @@ pending path only sets the fill colour, which is also the text colour.
   font that has the glyphs, but lines only break at spaces.
 - Kerning. Widths are plain advance widths (pdfkit applies AFM kern pairs; differences are fractions of a point).
 - Automatic page breaks for free text: text past the bottom of the page is simply off the page (tables paginate through `PdfTable.Draw`).
-- PDF/A, encryption, forms, annotations, links, bookmarks.
+- Encryption, forms, annotations, links, bookmarks.
 - QR codes. Draw the module matrix from any generator as 1 pt squares — see `samples/DianInvoice`.
 
 ## Repository layout

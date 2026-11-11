@@ -26,6 +26,12 @@ public sealed class PdfDocument
     /// </summary>
     public bool CompressStreams { get; set; } = true;
 
+    /// <summary>
+    /// The archival standard to write the document to. Default <see cref="PdfConformance.None"/>,
+    /// a plain PDF. See <see cref="PdfConformance.PdfA3B"/> for what choosing it adds and forbids.
+    /// </summary>
+    public PdfConformance Conformance { get; set; }
+
     /// <summary>Pages added so far, in order.</summary>
     public IReadOnlyList<PdfPage> Pages => _pages;
 
@@ -55,6 +61,12 @@ public sealed class PdfDocument
         if (_pages.Count == 0)
         {
             throw new InvalidOperationException("A PDF document needs at least one page.");
+        }
+
+        var archival = Conformance == PdfConformance.PdfA3B;
+        if (archival)
+        {
+            RequireArchivable();
         }
 
         var writer = new PdfWriter();
@@ -124,6 +136,11 @@ public sealed class PdfDocument
             ["Pages"] = pagesRef,
         };
         WriteAttachments(writer, catalog);
+        if (archival)
+        {
+            WriteArchivalParts(writer, catalog);
+        }
+
         writer.Set(catalogRef, catalog);
 
         var infoRef = writer.Add(new PdfDictionary
@@ -216,6 +233,54 @@ public sealed class PdfDocument
         }
 
         return name;
+    }
+
+    /// <summary>Fails with the reason when the document holds something PDF/A does not allow.</summary>
+    private void RequireArchivable()
+    {
+        foreach (var (font, _) in _fontNames)
+        {
+            if (font.ArchivalProblem(_fontUsage[font]) is { } problem)
+            {
+                throw new InvalidOperationException($"This document cannot be saved as PDF/A: {problem}.");
+            }
+        }
+
+        if (_imageNames.Keys.Any(image => image.IsJpeg && image.Components == 4))
+        {
+            throw new InvalidOperationException(
+                "This document cannot be saved as PDF/A: it holds a CMYK JPEG, and its output intent is sRGB. Convert the image to RGB first.");
+        }
+    }
+
+    /// <summary>
+    /// What PDF/A adds to a plain file: the XMP packet that states the conformance (uncompressed, as
+    /// the standard asks), an sRGB output intent so that device colours have a defined meaning, a
+    /// file identifier, and the 1.7 header that PDF/A-3 builds on.
+    /// </summary>
+    private void WriteArchivalParts(PdfWriter writer, PdfDictionary catalog)
+    {
+        catalog["Metadata"] = writer.Add(
+            new PdfDictionary { ["Type"] = new PdfName("Metadata"), ["Subtype"] = new PdfName("XML") },
+            XmpMetadata.Build(Info, part: 3, conformance: "B"),
+            compress: false);
+
+        var profile = writer.Add(new PdfDictionary { ["N"] = 3 }, SrgbProfile.Bytes, compress: true);
+        catalog["OutputIntents"] = new object[]
+        {
+            new PdfDictionary
+            {
+                ["Type"] = new PdfName("OutputIntent"),
+                ["S"] = new PdfName("GTS_PDFA1"),
+                ["OutputConditionIdentifier"] = SrgbProfile.Name,
+                ["Info"] = SrgbProfile.Name,
+                ["RegistryName"] = "http://www.color.org",
+                ["DestOutputProfile"] = profile,
+            },
+        };
+
+        writer.Version = "1.7";
+        writer.WriteFileId = true;
     }
 
     /// <summary>

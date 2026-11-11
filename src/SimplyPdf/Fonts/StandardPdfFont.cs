@@ -55,6 +55,11 @@ internal sealed class StandardPdfFont : PdfFont
         content.Append(" Tj\n");
     }
 
+    internal override string? ArchivalProblem(IReadOnlySet<ushort> usedCodes) =>
+        usedCodes.Count > 0
+            ? $"the standard font {Name} is never embedded; draw the text with a font loaded through PdfFont.FromFile"
+            : null;
+
     internal override PdfObjectRef WriteTo(PdfWriter writer, IReadOnlySet<ushort> usedCodes) =>
         writer.Add(new PdfDictionary
         {
