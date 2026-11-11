@@ -1,16 +1,24 @@
 using System.Globalization;
 using System.IO.Compression;
+using System.Security.Cryptography;
 using System.Text;
 
 namespace SimplyPdf.Internal;
 
 /// <summary>
-/// Collects indirect objects and serialises them as a classic PDF 1.4 file:
+/// Collects indirect objects and serialises them as a classic PDF file:
 /// header, body, cross-reference table, trailer.
 /// </summary>
 internal sealed class PdfWriter
 {
-    private const string Version = "1.4";
+    /// <summary>The version the header announces: 1.4 unless the document needs a later one.</summary>
+    public string Version { get; set; } = "1.4";
+
+    /// <summary>
+    /// Whether the trailer carries a file identifier. It is a hash of everything written, so the
+    /// same document always gets the same one.
+    /// </summary>
+    public bool WriteFileId { get; set; }
 
     // Body bytes of each object, indexed by object number - 1. Null = reserved but not yet set.
     private readonly List<byte[]?> _bodies = [];
@@ -102,6 +110,13 @@ internal sealed class PdfWriter
             ["Root"] = catalog,
             ["Info"] = info,
         };
+        if (WriteFileId)
+        {
+            var hash = SHA256.HashData(buffer.GetBuffer().AsSpan(0, (int)xrefOffset));
+            var id = Convert.ToHexString(hash, 0, 16);
+            trailer["ID"] = new PdfRaw($"[<{id}> <{id}>]");
+        }
+
         var sb = new StringBuilder("trailer\n");
         trailer.AppendTo(sb);
         sb.Append("\nstartxref\n").Append(xrefOffset.ToString(CultureInfo.InvariantCulture)).Append("\n%%EOF\n");

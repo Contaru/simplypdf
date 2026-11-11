@@ -1,6 +1,8 @@
+using System.Text;
 using SimplyPdf.Fonts;
 using SimplyPdf.Fonts.TrueType;
 using SimplyPdf.Internal;
+using SimplyPdf.Text;
 
 namespace SimplyPdf;
 
@@ -8,7 +10,9 @@ namespace SimplyPdf;
 /// A font usable with <see cref="PdfPage.Font(PdfFont, double?)"/>: either one of the standard 14
 /// (never embedded, see <see cref="Standard"/> and the static properties) or a TrueType file
 /// loaded with <see cref="FromFile"/> / <see cref="FromBytes"/>, which is embedded subsetted.
-/// Text is always WinAnsi-encoded; characters the font lacks render as its .notdef glyph.
+/// The standard fonts are limited to WinAnsi (Latin-1 plus a few typographic extras) and show a
+/// question mark for anything else; an embedded font draws every character it has a glyph for,
+/// and its .notdef glyph for the ones it lacks.
 /// Instances are immutable and safe to share across documents — reuse them, since every
 /// distinct instance becomes a separate font object in the file.
 /// </summary>
@@ -102,7 +106,7 @@ public abstract class PdfFont
     public double WidthOfString(string text, double size)
     {
         ArgumentNullException.ThrowIfNull(text);
-        return WidthOf(WinAnsiEncoding.Encode(text), size);
+        return WidthOf(Encode(text), size);
     }
 
     /// <summary>
@@ -174,18 +178,37 @@ public abstract class PdfFont
     /// <summary>Extra leading in 1/1000 em.</summary>
     internal abstract double LineGap { get; }
 
-    /// <summary>Advance width of a WinAnsi code in 1/1000 em.</summary>
-    internal abstract double WidthOfCode(byte code);
+    /// <summary>
+    /// True when the PDF word-spacing operator (<c>Tw</c>) stretches this font's spaces. It only acts
+    /// on the single-byte code 32, so fonts written with two-byte codes get their justification
+    /// from <see cref="AppendShow"/> instead.
+    /// </summary>
+    internal abstract bool WordSpacingOperatorApplies { get; }
+
+    /// <summary>Turns text into this font's codes: WinAnsi bytes or glyph ids.</summary>
+    internal abstract TextCode[] Encode(string text);
+
+    /// <summary>Advance width of one of this font's codes in 1/1000 em.</summary>
+    internal abstract double WidthOfCode(ushort code);
+
+    /// <summary>
+    /// Appends the operator that shows <paramref name="codes"/> and a newline. A font the word-spacing
+    /// operator does not reach widens each space by <paramref name="wordSpacing"/> points itself.
+    /// </summary>
+    internal abstract void AppendShow(StringBuilder content, ReadOnlySpan<TextCode> codes, double wordSpacing, double size);
 
     /// <summary>Writes the font dictionary (and whatever it references) and returns its reference.</summary>
-    internal abstract PdfObjectRef WriteTo(PdfWriter writer, IReadOnlySet<byte> usedCodes);
+    internal abstract PdfObjectRef WriteTo(PdfWriter writer, IReadOnlySet<ushort> usedCodes);
 
-    internal double WidthOf(ReadOnlySpan<byte> codes, double size)
+    /// <summary>Why this font, having drawn these codes, cannot go into a PDF/A file; null when it can.</summary>
+    internal abstract string? ArchivalProblem(IReadOnlySet<ushort> usedCodes);
+
+    internal double WidthOf(ReadOnlySpan<TextCode> codes, double size)
     {
         var units = 0.0;
         foreach (var code in codes)
         {
-            units += WidthOfCode(code);
+            units += WidthOfCode(code.Value);
         }
 
         return units * size / 1000.0;
