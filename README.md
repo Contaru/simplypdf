@@ -1,12 +1,13 @@
 # SimplyPdf
 
-A dependency-free PDF writer for .NET. Absolute-position drawing, the 14 standard fonts, embedded
-TrueType fonts, PNG and JPEG images — nothing else. No native binaries, no third-party packages,
-no licence gate.
+A dependency-free PDF writer for .NET, made for business documents. Absolute-position drawing,
+the 14 standard fonts, embedded TrueType fonts with any character they hold, PNG and JPEG images,
+a table that continues on the next page, links, attachments and PDF/A-3b. No native binaries, no
+third-party packages, no licence gate.
 
-It exists for documents like invoices, receipts and labels: fixed layouts drawn at known
-coordinates, plus one table that continues on the next page. If you need flowing multi-page
-layouts beyond that, or scripts that need shaping, use a layout engine instead (QuestPDF, PDFsharp).
+It exists for documents like invoices, quotations, receipts and labels: fixed layouts drawn at
+known coordinates, plus one table that paginates. If you need flowing multi-page layouts beyond
+that, or scripts that need shaping, use a layout engine instead (QuestPDF, PDFsharp).
 
 ```sh
 dotnet add package SimplyPdf
@@ -47,10 +48,12 @@ An embedded font draws every character it has a glyph for, whatever the alphabet
 `Ősz`, `Ω`. The text is written as glyph ids with a map back to Unicode, so viewers can copy
 and search it; a character the font lacks shows its `.notdef` glyph. The standard 14 stay
 limited to WinAnsi (Latin-1 plus curly quotes, dashes, €, ™) and write `?` for anything else,
-so a customer name outside Latin-1 needs an embedded font. The font's OS/2 embedding permissions are honoured:
-*restricted licence* and *bitmap-only* fonts are rejected, *no subsetting* fonts are embedded
-whole. CFF-based `.otf` files and `.ttc` collections are not supported — use `.ttf` with `glyf`
-outlines (every Google Fonts download qualifies).
+so a customer name outside Latin-1 needs an embedded font.
+
+The font's OS/2 embedding permissions are honoured: *restricted licence* and *bitmap-only* fonts
+are rejected, *no subsetting* fonts are embedded whole. CFF-based `.otf` files and `.ttc`
+collections are not supported — use `.ttf` with `glyf` outlines (every Google Fonts download
+qualifies).
 
 Only embed fonts whose licence allows it. SIL OFL fonts do; most "free for personal use" fonts
 and many freeware desktop EULAs (Typodermic's, for instance) do not cover servers or software.
@@ -128,6 +131,40 @@ loop always advances. `PdfTableStyle` sets fonts, colours, padding, stripes and 
 header repeats. For single-line cells that must not wrap, `font.Fit(text, size, maxWidth)` (or
 `page.FitString`) trims the text to the width with an ellipsis.
 
+## Links
+
+`Link(x, y, width, height, uri)` makes a rectangle of the page clickable. It draws nothing, so
+put it over whatever should be clicked — here a line of text, measured with the current font:
+
+```csharp
+const string url = "https://contaru.com/facturas/FE0177192";
+
+page.Font(StandardFont.Helvetica, 9).Fill("#0b57d0")
+    .Text(url, 40, 700)
+    .Link(40, 700, page.WidthOfString(url), page.CurrentLineHeight(), url)
+    .Link(40, 45, 160, 48, "mailto:facturacion@contaru.com");   // over the logo
+```
+
+The URI must be absolute (`https://…`, `mailto:…`, `tel:…`; a bare `www.example.com` is rejected).
+Spaces and non-ASCII characters are percent-encoded. The rectangle follows `Translate` / `Scale` /
+`Rotate`, so it lands where the drawing does; under a rotation the clickable area is the bounding
+box of the rotated rectangle.
+
+## QR codes
+
+The library draws a QR code; it does not compute one. Bring the module matrix from any generator,
+as a size and a `(column, row)` predicate or as a `bool[row, column]` array, and `Modules` draws
+it as vector rectangles:
+
+```csharp
+var qr = QrCode.EncodeText(payload, QrCode.Ecc.Medium); // Net.Codecrete.QrCodeGenerator, or any other
+
+page.Modules(qr.Size, qr.GetModule, x: 375, y: 25, quietZone: 4);            // 1 pt per module
+page.Modules(qr.Size, qr.GetModule, x: 375, y: 25, width: 90, quietZone: 4); // or fitted to a 90 pt box
+```
+
+Any other matrix code (Aztec, Data Matrix) is drawn the same way. See `samples/DianInvoice`.
+
 ## Attachments
 
 A document can carry other files, which viewers list in their attachments panel: the XML of an
@@ -180,25 +217,6 @@ Drawing follows the PDF model: path calls (`Rect`, `MoveTo`, `LineTo`, `Circle`�
 and the next `Fill` / `Stroke` / `FillAndStroke` / `Clip` consumes them. `Fill(color)` with no
 pending path only sets the fill colour, which is also the text colour.
 
-## Links
-
-`Link(x, y, width, height, uri)` makes a rectangle of the page clickable. It draws nothing, so
-put it over whatever should be clicked — here a line of text, measured with the current font:
-
-```csharp
-const string url = "https://contaru.com/facturas/FE0177192";
-
-page.Font(StandardFont.Helvetica, 9).Fill("#0b57d0")
-    .Text(url, 40, 700)
-    .Link(40, 700, page.WidthOfString(url), page.CurrentLineHeight(), url)
-    .Link(40, 45, 160, 48, "mailto:facturacion@contaru.com");   // over the logo
-```
-
-The URI must be absolute (`https://…`, `mailto:…`, `tel:…`; a bare `www.example.com` is rejected).
-Spaces and non-ASCII characters are percent-encoded. The rectangle follows `Translate` / `Scale` /
-`Rotate`, so it lands where the drawing does; under a rotation the clickable area is the bounding
-box of the rotated rectangle.
-
 ## What it does
 
 | Area | Support |
@@ -224,16 +242,7 @@ box of the rotated rectangle.
 - Kerning. Widths are plain advance widths (pdfkit applies AFM kern pairs; differences are fractions of a point).
 - Automatic page breaks for free text: text past the bottom of the page is simply off the page (tables paginate through `PdfTable.Draw`).
 - Encryption, forms, annotations other than links, bookmarks.
-- QR encoding, by design: the library draws a QR code, it does not compute one. Bring the module
-  matrix from any generator — a size and a `(column, row)` predicate, or a `bool[row, column]`
-  array — and `Modules` draws it as vector rectangles (see `samples/DianInvoice`):
-
-  ```csharp
-  var qr = QrCode.EncodeText(payload, QrCode.Ecc.Medium); // Net.Codecrete.QrCodeGenerator, or any other
-
-  page.Modules(qr.Size, qr.GetModule, x: 375, y: 25, quietZone: 4);            // 1 pt per module
-  page.Modules(qr.Size, qr.GetModule, x: 375, y: 25, width: 90, quietZone: 4); // or fitted to a 90 pt box
-  ```
+- QR encoding, by design: `Modules` draws the matrix a generator produces, it does not compute it.
 
 ## Repository layout
 
@@ -249,8 +258,10 @@ tools/AfmToCSharp/      regenerates the font metrics from tools/afm/*.afm
 
 ```sh
 dotnet test
+dotnet run --project samples/A4Invoice -- FSII1305.pdf
 dotnet run --project samples/DianInvoice -- FE0177192.pdf
 dotnet run --project samples/PosReceipt -- out/
+dotnet run --project samples/PosInvoice -- factura-pos.pdf VT323-Regular.ttf
 ```
 
 ## Releasing
@@ -258,17 +269,13 @@ dotnet run --project samples/PosReceipt -- out/
 Bump `<Version>` in `src/SimplyPdf/SimplyPdf.csproj`, merge, then push the matching tag:
 
 ```sh
-git tag v0.2.0 && git push origin v0.2.0
+git tag v0.3.0 && git push origin v0.3.0
 ```
 
 `.github/workflows/release.yml` builds, tests, packs and pushes to nuget.org through
 [trusted publishing](https://learn.microsoft.com/nuget/nuget-org/trusted-publishing): no API
 key is stored anywhere. It needs a trusted publishing policy on nuget.org for this repository
 and workflow, and the repository variable `NUGET_USER` set to the nuget.org username that owns it.
-
-```sh
-dotnet run --project samples/PosInvoice -- factura-pos.pdf VT323-Regular.ttf
-```
 
 ## License
 
